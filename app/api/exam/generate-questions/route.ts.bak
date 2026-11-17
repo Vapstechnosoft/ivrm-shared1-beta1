@@ -1,0 +1,292 @@
+import { NextRequest, NextResponse } from "next/server";
+import Groq from "groq-sdk";
+
+// Use require for pdf-parse to avoid ESM default export issues
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const pdf = require("pdf-parse");
+
+// Initialize Groq client
+const groq = new Groq({
+    apiKey: process.env.paper_Groq_api_key || "",
+});
+
+export const runtime = 'nodejs'; // Force Node.js runtime
+
+export const config = {
+    api: {
+        bodyParser: false,
+    },
+};
+
+// Helper utility to extract chapter content
+function extractChapterContent(fullText: string, chapters: string[]): string {
+    let combinedContent = "";
+    const normalizedText = fullText.toLowerCase();
+
+    for (const chapter of chapters) {
+        const chapterNum = chapter.trim().toLowerCase();
+        // Try to find "Chapter X" or just headers that look like the start of the chapter
+        // This is a heuristic approach. Real-world PDFs are messy.
+
+        // Patterns to look for start of chapter
+        const startPatterns = [
+            `chapter ${chapterNum}`,
+            `unit ${chapterNum}`,
+            `lesson ${chapterNum}`,
+            `${chapterNum}. `, // e.g. "1. Introduction"
+        ];
+
+        let startIndex = -1;
+        for (const pattern of startPatterns) {
+            const idx = normalizedText.indexOf(pattern);
+            if (idx !== -1) {
+                startIndex = idx;
+                break;
+            }
+        }
+
+        if (startIndex === -1) {
+            console.warn(`Chapter ${chapterNum} not found, skipping.`);
+            continue;
+        }
+
+        // Attempt to find the end of this chapter (start of next chapter or significant break)
+        // We'll look for the next likely chapter pattern or a hard safety limit
+        // For simplicity in this demo, we'll take a chunk of text (e.g., 20k chars) 
+        // or stop if we see "Chapter [Next]"
+
+        // Simple heuristic: Take next 15000 characters as context for this chapter
+        const safetyLimit = 15000;
+        let endIndex = Math.min(normalizedText.length, startIndex + safetyLimit);
+
+        // Refinement: Try to stop at the next "Chapter" keyword if it appears earlier
+        const nextChapterPattern = /chapter\s+\d+|unit\s+\d+/g;
+        nextChapterPattern.lastIndex = startIndex + 50; // Skip current chapter title
+        const nextMatch = nextChapterPattern.exec(normalizedText.slice(startIndex + 50));
+
+        if (nextMatch) {
+            endIndex = Math.min(endIndex, startIndex + 50 + nextMatch.index);
+        }
+
+        // Extract original case text using indices
+        combinedContent += `\n\n--- CONTENT FOR CHAPTER ${chapterNum} ---\n\n`;
+        combinedContent += fullText.slice(startIndex, endIndex);
+    }
+
+    return combinedContent || fullText.slice(0, 20000); // Fallback: return first 20k chars if extraction fails
+}
+
+const busboy = require('busboy');
+const { Readable } = require('stream');
+
+export async function POST(req: NextRequest) {
+    const logs: string[] = [];
+    const log = (msg: string) => {
+        const timestamp = new Date().toISOString();
+        const entry = `[${timestamp}] ${msg}`;
+        logs.push(entry);
+        console.log(entry);
+    };
+
+    try {
+        log('Start processing request');
+
+        // Stream request body directly to busboy to bypass buffering limits
+        if (!req.body) {
+            return NextResponse.json({ error: "No request body" }, { status: 400 });
+        }
+
+        log('Streaming request body...');
+
+        const bb = busboy({ headers: { 'content-type': req.headers.get('content-type') || '' } });
+
+        let fileBuffer: Buffer | null = null;
+        let fileName = '';
+        const formFields: Record<string, string> = {};
+
+        await new Promise((resolve, reject) => {
+            bb.on('file', (name: string, file: any, info: any) => {
+                const { filename } = info;
+                fileName = filename;
+                const chunks: any[] = [];
+                file.on('data', (data: any) => chunks.push(data));
+                file.on('end', () => {
+                    fileBuffer = Buffer.concat(chunks);
+                });
+            });
+
+            bb.on('field', (name: string, val: string) => {
+                formFields[name] = val;
+            });
+
+            bb.on('close', resolve);
+            bb.on('error', reject);
+
+            try {
+                // Convert Web Stream to Node Strream
+                // @ts-ignore - Readable.fromWeb is available in Node environment
+                const nodeStream = Readable.fromWeb(req.body);
+                nodeStream.pipe(bb);
+            } catch (err) {
+                reject(err);
+            }
+        });
+
+        if (!fileBuffer) {
+            return NextResponse.json({ error: "No file uploaded" }, { status: 400 });
+        }
+
+        // Assert non-null for TS
+        const pdfBuffer = fileBuffer as Buffer;
+
+        log(`File parsed: ${fileName}, Size: ${pdfBuffer.length}`);
+
+        const markConfig = JSON.parse(formFields["markConfig"] || "{}");
+        const difficultyConfig = JSON.parse(formFields["difficultyConfig"] || "{}");
+        const chapters = formFields["chapters"] ? formFields["chapters"].split(",").map((c) => c.trim()) : [];
+
+        log(`PDF Buffer ready, length: ${pdfBuffer.length}`);
+
+        // Extract Text from PDF
+        let pdfText = "";
+        try {
+            log('Starting PDF parsing with pdf-parse v1...');
+            log(`Buffer type: ${typeof pdfBuffer}, isBuffer: ${Buffer.isBuffer(pdfBuffer)}, length: ${pdfBuffer.length}`);
+
+            // v1 usage: pdf(buffer) returns a promise that resolves to data object
+            const data = await pdf(pdfBuffer);
+
+            if (!data || !data.text) {
+                throw new Error("PDF parsing returned empty data");
+            }
+
+            pdfText = data.text;
+            log(`PDF parsed successfully. Text length: ${pdfText.length}`);
+        } catch (e: any) {
+            log(`PDF Parsing Error: ${e.message}\nStack: ${e.stack}`);
+
+            // Return verbose error details to frontend
+            return NextResponse.json({
+                error: "Failed to parse PDF: " + e.message,
+                details: logs.join('\n')
+            }, { status: 500 });
+        }
+
+        // Filter content by chapter
+        const contextContent = chapters.length > 0
+            ? extractChapterContent(pdfText, chapters)
+            : pdfText.slice(0, 30000); // Use first 30k chars if no specific chapter requested
+        log(`Content filtered. Length: ${contextContent.length}`);
+
+        if (contextContent.length < 50) {
+            log('WARNING: Content length is very small!');
+        }
+
+        // Construct Prompt
+        const totalMarks = Object.entries(markConfig).reduce((acc, [mark, count]) => acc + (Number(mark) * Number(count)), 0);
+
+        let questionsRequirement = "";
+        for (const [mark, count] of Object.entries(markConfig)) {
+            if (Number(count) > 0) {
+                questionsRequirement += `- ${count} questions of ${mark} marks each\n`;
+            }
+        }
+
+        const prompt = `
+            You are an expert educator creating a question paper. Analyze the textbook content provided below and generate a structured question paper.
+
+            **Configuration:**
+            - Chapters Targeted: ${chapters.join(", ") || "All Content"}
+            - Total Marks (Target): ${totalMarks}
+      
+            **Question Requirements:**
+            ${questionsRequirement}
+
+            **Difficulty Distribution:**
+            - Easy: ${difficultyConfig.easy || "30"}%
+            - Medium: ${difficultyConfig.medium || "40"}%
+            - Hard: ${difficultyConfig.hard || "30"}%
+
+            **Content:**
+            ${contextContent.slice(0, 50000)} ... [truncated]
+
+            **Instructions:**
+            1. Create questions based ONLY on the provided text.
+            2. Ensure the exact number of questions for each mark category is generated.
+            3. For 1-mark questions, create MCQs with 4 options. Mark the correct option with an asterisk (*).
+            4. For higher mark questions (2, 3, 5, etc.), invoke critical thinking (e.g., "Analyze", "Derive", "Compare").
+            5. Output MUST be valid JSON.
+
+            **JSON Format Output:**
+            {
+            "title": "AI Question Paper",
+            "totalMarks": ${totalMarks},
+            "sections": [
+                {
+                "markValue": 1,
+                "questions": [
+                    {
+                    "id": 1,
+                    "text": "Question text...",
+                    "type": "MCQ",
+                    "options": ["A) Op1", "B) Op2", "C) Op3 *", "D) Op4"],
+                    "difficulty": "Easy",
+                    "topic": "Topic Name"
+                    }
+                ]
+                },
+                {
+                    "markValue": 5,
+                    "questions": [
+                    {
+                        "id": 10,
+                        "text": "Explain in detail...",
+                        "type": "Long Answer",
+                        "difficulty": "Hard",
+                        "topic": "Topic Name"
+                    }
+                    ]
+                }
+            ]
+            }
+        `;
+
+        // Call Groq
+        log('Calling Groq API...');
+        const chatCompletion = await groq.chat.completions.create({
+            messages: [{ role: "user", content: prompt }],
+            model: "llama-3.3-70b-versatile",
+            temperature: 0.7,
+            max_tokens: 4000,
+            response_format: { type: "json_object" },
+        });
+
+        const outputContent = chatCompletion.choices[0]?.message?.content;
+        log(`Groq response received. Length: ${outputContent?.length}`);
+
+        if (!outputContent) {
+            throw new Error("No content received from LLM");
+        }
+
+        const jsonResponse = JSON.parse(outputContent);
+        log('JSON parsed successfully. Sending response.');
+
+        return NextResponse.json(jsonResponse);
+
+    } catch (error: any) {
+        log(`API CRITICAL ERROR: ${error.message}\nStack: ${error.stack}`);
+
+        // Log deep details about the error
+        if (error.response) {
+            log(`Groq Response Error: ${JSON.stringify(error.response.data)}`);
+        }
+
+        return NextResponse.json(
+            {
+                error: error.message || "Internal Server Error",
+                details: logs.join('\n')
+            },
+            { status: 500 }
+        );
+    }
+}

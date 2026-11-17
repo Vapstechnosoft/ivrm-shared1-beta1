@@ -1,0 +1,126 @@
+'use client';
+
+import { Heading } from '@/components/layout/heading';
+import { Button } from '@/components/ui/button';
+import { CollapsibleSection } from '@/components/ui/form/collapsible-section';
+import { InputText } from '@/components/ui/extension/input-text';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import React, { useEffect, useMemo, useState } from 'react';
+import { createLocalCrud, type BaseEntity } from '@/lib/localdb';
+import { toast } from 'sonner';
+import { Printer, RefreshCw } from 'lucide-react';
+
+interface Candidate extends BaseEntity {
+  firstName: string;
+  middleName?: string;
+  lastName: string;
+  emailId: string;
+  mobileNo: string;
+  currentCompany?: string;
+  lastCTC?: string;
+  expectedCTC?: string;
+  resumeCV?: string; // url
+}
+
+export default function CandidateReportPage() {
+  const [institutions] = useState<string[]>([
+    'Global Quality Training & Assessors Pvt LTD',
+    'VAPS Technologies',
+    'ANI Technologies',
+  ]);
+  const [institution, setInstitution] = useState<string>('');
+  const [candidateId, setCandidateId] = useState<string>('');
+
+  const candidateDB = createLocalCrud<Candidate>('recruitment:candidate');
+  const candidates = useMemo(() => candidateDB.list(), []);
+  const selected = useMemo(() => candidates.find(c => c.id.toString() === candidateId), [candidates, candidateId]);
+
+  useEffect(()=>{
+    if (!candidateId && candidates.length > 0) setCandidateId(candidates[0].id.toString());
+  }, [candidates, candidateId]);
+
+  const handleReport = () => {
+    if (!institution || !selected) { toast.error('Please select institution and candidate'); return; }
+    toast.success('Report generated');
+  };
+
+  const handlePrint = () => { window.print(); };
+
+  return (
+    <div className='min-h-screen'>
+      <div className='container p-1 space-y-4'>
+        <div className='flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between'>
+          <div className='space-y-1'>
+            <Heading title='Candidate Report' description='Generate a report for selected candidate' />
+          </div>
+        </div>
+
+        <CollapsibleSection title='Candidate Report Generation' description='' defaultOpen={true} variant='default' size='lg' className='shadow-lg transition-shadow duration-300 hover:shadow-xl'>
+          <div className='grid grid-cols-1 md:grid-cols-3 gap-6'>
+            <div className='space-y-2'>
+              <label className='text-sm font-medium'>Institution <span className='text-red-500'>*</span></label>
+              <Select onValueChange={setInstitution}>
+                <SelectTrigger><SelectValue placeholder='--Select--' /></SelectTrigger>
+                <SelectContent>
+                  {institutions.map((i)=> (<SelectItem key={i} value={i}>{i}</SelectItem>))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className='space-y-2 md:col-span-2'>
+              <label className='text-sm font-medium'>Candidate Name <span className='text-red-500'>*</span></label>
+              <Select onValueChange={setCandidateId} value={candidateId}>
+                <SelectTrigger><SelectValue placeholder='Select Candidate' /></SelectTrigger>
+                <SelectContent>
+                  {candidates.map((c)=> (
+                    <SelectItem key={c.id} value={c.id.toString()}>{`${c.firstName} ${c.middleName || ''} ${c.lastName}`.trim()}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className='flex gap-3 mt-4'>
+            <Button type='button' onClick={handleReport}>
+              <RefreshCw className='h-4 w-4 mr-2' />
+              Report
+            </Button>
+            <Button type='button' variant='outline' onClick={handlePrint}>
+              <Printer className='h-4 w-4 mr-2' />
+              Print
+            </Button>
+          </div>
+        </CollapsibleSection>
+
+        <CollapsibleSection title='Candidate Details View' description='' defaultOpen={true} variant='default' size='lg' className='shadow-lg transition-shadow duration-300 hover:shadow-xl'>
+          {selected ? (
+            <div className='grid grid-cols-1 md:grid-cols-3 gap-6'>
+              <div className='md:col-span-2 space-y-2'>
+                <div className='grid grid-cols-2 gap-2 text-sm'>
+                  <div className='font-medium'>Candidate Name</div>
+                  <div>{`${selected.firstName} ${selected.middleName || ''} ${selected.lastName}`.trim()}</div>
+                  <div className='font-medium'>Mobile No</div>
+                  <div>{selected.mobileNo}</div>
+                  <div className='font-medium'>Email Id</div>
+                  <div>{selected.emailId}</div>
+                  <div className='font-medium'>Current Company</div>
+                  <div>{selected.currentCompany || '-'}</div>
+                  <div className='font-medium'>Last CTC</div>
+                  <div>{selected.lastCTC || '-'}</div>
+                  <div className='font-medium'>Expected CTC</div>
+                  <div>{selected.expectedCTC || '-'}</div>
+                </div>
+              </div>
+              <div className='flex flex-col items-center justify-start gap-3'>
+                <div className='w-40 h-48 bg-muted rounded border flex items-center justify-center text-xs text-muted-foreground'>Resume</div>
+                {selected.resumeCV && (
+                  <a className='text-primary underline' href={selected.resumeCV} target='_blank' rel='noreferrer'>Download Resume</a>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className='text-sm text-muted-foreground'>Select a candidate to view details.</div>
+          )}
+        </CollapsibleSection>
+      </div>
+    </div>
+  );
+}

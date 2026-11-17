@@ -1,0 +1,19 @@
+
+    // SAFETY: Re-hydrate arrays when switching tabs if they appear empty but data exists
+    useEffect(() => {
+        if (!isFormInitialized) return;
+        
+        // Qualification Tab
+        if (currentStep === 3) {
+            const currentVals = getValues('qualificationDetails');
+            if ((!qualificationFields || qualificationFields.length === 0) && currentVals && currentVals.length > 0) {
+                 console.log('🔄 [TAB-SWITCH] Re-hydrating qualification fields...', currentVals.length);
+                 replaceQualification(currentVals);
+            }
+        }
+        
+        // Experience Tab - Assuming step 4 (update based on actual step ID if needed)
+        // If "Experience" is the next step after Qualification, it might be step 4?
+        // Let's just check the data regardless of step for safety on mount if specific steps unmount
+        
+    }, [currentStep, isFormInitialized, qualificationFields.length, getValues, replaceQualification]);

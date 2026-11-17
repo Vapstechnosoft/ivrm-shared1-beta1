@@ -1,0 +1,742 @@
+// Refactored by automation script on 2025-10-28T15:40:35.854Z
+// TODO: Complete refactoring by:
+// 1. Import columns from _components/columns.tsx
+// 2. Import form from _components/hrauthorisation-form.tsx
+// 3. Extract column definitions and form to the respective files
+// 4. Update handlers to use the new structure
+'use client';
+import { Heading } from '@/components/layout/heading';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { DataTableColumnHeader } from '@/components/ui/data-table-column-header';
+import { GenericDataTable } from '@/components/ui/data-table/generic-data-table';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { InputText } from '@/components/ui/extension/input-text';
+import { CollapsibleSection } from '@/components/ui/form/collapsible-section';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import type { ColumnDef } from '@tanstack/react-table';
+import { Edit, Eye, Mail, MoreHorizontal, Plus, Save, Trash2, X } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { toast } from 'sonner';
+interface HRAuthorisation {
+    id: number;
+    type: string;
+    group: string;
+    department: string;
+    designation: string;
+    grade: string;
+    order: number;
+    userName: string;
+    finalFlag: boolean;
+    email: string;
+    activities: string[];
+    emailCC?: string;
+    approvedBy?: string;
+}
+interface CartItem {
+    id: number;
+    activities: string[];
+    approvedPerson: string;
+    approvedLevel: number;
+    finalFlag: boolean;
+}
+type HRAuthorisationForm = {
+    group: string;
+    department: string;
+    designationType: string;
+    gradeType: string;
+    activities: string[];
+    email: string;
+    emailCC: string;
+    orderBy: string;
+    approvedBy: string;
+    finalAuthority: boolean;
+};
+export default function HRAuthorisationPage() {
+    const [isFormOpen, setIsFormOpen] = useState(false);
+    const [editingId, setEditingId] = useState<number | null>(null);
+    const [authorisations, setAuthorisations] = useState<HRAuthorisation[]>([]);
+    const [cartItems, setCartItems] = useState<CartItem[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const formRef = useRef<HTMLDivElement>(null);
+    // Mock data for dropdowns
+    const _groups = ['Teaching', 'Non-Teaching', 'Administration'];
+    const _departments = ['ComputerScience', 'Mathematics', 'Physics', 'Chemistry', 'Biology'];
+    const _designations = ['Assistant Teacher', 'Teacher', 'Lab Assistance', 'Principal', 'Vice Principal'];
+    const _grades = ['junior', 'senior', 'lead'];
+    const _activities = [
+        'Salary',
+        'General',
+        'Training',
+        'CLGFEE',
+        'Maker And Checker',
+        'compoffODApproval',
+        'SalaryAdvance',
+        'Loan',
+        'Leave',
+        'Probationary'
+    ];
+    const _users = ['BATMAN', 'WendyHazra', 'PoonamJaiswal'];
+    const {
+        reset,
+        setValue,
+        watch,
+        formState: { isSubmitting }
+    } = useForm<HRAuthorisationForm>({
+        mode: 'onChange',
+        defaultValues: {
+            activities: [],
+            finalAuthority: false
+        }
+    });
+    const watchedActivities = watch('activities');
+    // Load mock data on component mount
+    useEffect(() => {
+        loadAuthorisations();
+    }, []);
+    const loadAuthorisations = async () => {
+        try {
+            setIsLoading(true);
+            // Mock data
+            const mockData: HRAuthorisation[] = [
+                {
+                    id: 1,
+                    type: '2018-09-04 12:05:46.4057556',
+                    group: 'TEAM LEAD',
+                    department: 'TESTING',
+                    designation: 'TL',
+                    grade: '1',
+                    order: 1,
+                    userName: 'BATMAN',
+                    finalFlag: true,
+                    email: '',
+                    activities: ['General']
+                },
+                {
+                    id: 2,
+                    type: 'SalaryAdvance',
+                    group: 'Teaching',
+                    department: 'Teaching',
+                    designation: 'Assistant Teacher',
+                    grade: '1',
+                    order: 1,
+                    userName: 'WendyHazra',
+                    finalFlag: true,
+                    email: '',
+                    activities: ['SalaryAdvance']
+                },
+                {
+                    id: 3,
+                    type: 'Loan',
+                    group: 'Teaching',
+                    department: 'Teaching',
+                    designation: 'Assistant Teacher',
+                    grade: '1',
+                    order: 1,
+                    userName: 'WendyHazra',
+                    finalFlag: true,
+                    email: '',
+                    activities: ['Loan']
+                }
+            ];
+            setAuthorisations(mockData);
+            toast.success(`Loaded ${mockData.length} HR authorisations`);
+        } catch (_error) {
+            toast.error('Failed to load HR authorisations');
+            setAuthorisations([]);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+    const handleAddToCart = () => {
+        const formData = watch();
+        if (
+            !formData.group ||
+            !formData.department ||
+            !formData.designationType ||
+            !formData.gradeType ||
+            formData.activities.length === 0 ||
+            !formData.orderBy
+        ) {
+            toast.error('Please fill in all required fields');
+            return;
+        }
+        const newCartItem: CartItem = {
+            id: Date.now(),
+            activities: formData.activities,
+            approvedPerson: formData.approvedBy || '',
+            approvedLevel: Number.parseInt(formData.orderBy),
+            finalFlag: formData.finalAuthority
+        };
+        setCartItems((prev) => [...prev, newCartItem]);
+        toast.success('Added to cart');
+        // Reset form
+        reset({
+            group: '',
+            department: '',
+            designationType: '',
+            gradeType: '',
+            activities: [],
+            email: '',
+            emailCC: '',
+            orderBy: '',
+            approvedBy: '',
+            finalAuthority: false
+        });
+    };
+    const handleRemoveFromCart = (id: number) => {
+        setCartItems((prev) => prev.filter((item) => item.id !== id));
+        toast.success('Removed from cart');
+    };
+    const handleSaveCart = () => {
+        if (cartItems.length === 0) {
+            toast.error('Cart is empty');
+            return;
+        }
+        // Here you would typically save to the backend
+        toast.success(`Saved ${cartItems.length} items successfully`);
+        setCartItems([]);
+        loadAuthorisations();
+    };
+    const handleCancelCart = () => {
+        setCartItems([]);
+        toast.info('Cart cleared');
+    };
+    const handleActivityChange = (activity: string, checked: boolean) => {
+        const currentActivities = watchedActivities || [];
+        if (checked) {
+            setValue('activities', [...currentActivities, activity]);
+        } else {
+            setValue(
+                'activities',
+                currentActivities.filter((a) => a !== activity)
+            );
+        }
+    };
+    const handleEdit = (auth: HRAuthorisation) => {
+        setEditingId(auth.id);
+        setValue('group', auth.group);
+        setValue('department', auth.department);
+        setValue('designationType', auth.designation);
+        setValue('gradeType', auth.grade);
+        setValue('activities', auth.activities);
+        setValue('email', auth.email);
+        setValue('emailCC', auth.emailCC || '');
+        setValue('orderBy', auth.order.toString());
+        setValue('approvedBy', auth.approvedBy || '');
+        setValue('finalAuthority', auth.finalFlag);
+        setIsFormOpen(true);
+    };
+    const handleDelete = async (id: number) => {
+        try {
+            setAuthorisations((prev) => prev.filter((auth) => auth.id !== id));
+            toast.success('HR Authorisation deleted successfully');
+        } catch (_error) {
+            toast.error('Failed to delete HR Authorisation');
+        }
+    };
+    const handleAddClick = () => {
+        setIsFormOpen(true);
+        setEditingId(null);
+        reset({
+            activities: [],
+            finalAuthority: false
+        });
+        // Scroll to form after state update
+        setTimeout(() => {
+            formRef.current?.scrollIntoView({
+                behavior: 'smooth',
+                block: 'end'
+            });
+        }, 100);
+    };
+    const handleFormClose = () => {
+        setIsFormOpen(false);
+        setEditingId(null);
+        reset({
+            activities: [],
+            finalAuthority: false
+        });
+    };
+    return (
+        <div className='min-h-screen'>
+            <div className='container space-y-4 p-1'>
+                {/* Header */}
+                <div className='flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between'>
+                    <div className='space-y-1'>
+                        <Heading
+                            title='HR Authorisation Management'
+                            description='Configure HR authorisation rules and approval workflows'
+                        />
+                    </div>
+                    <div className='flex flex-col gap-2 sm:flex-row sm:items-center'>
+                        <Button
+                            type='button'
+                            onClick={handleAddClick}
+                            size='lg'
+                            className='w-fit shadow-md transition-all duration-200 hover:scale-105 hover:shadow-lg'>
+                            <Plus className='h-4 w-4' />
+                            Add HR Authorisation
+                        </Button>
+                    </div>
+                </div>
+                {/* Data Table Section - Always visible */}
+                <CollapsibleSection
+                    title='HR Authorisation Data'
+                    description='View, search, and manage all HR authorisation rules in the system'
+                    defaultOpen={true}
+                    variant='default'
+                    size='lg'
+                    className='shadow-lg transition-shadow duration-300 hover:shadow-xl'
+                    headerClassName=''>
+                    <HRAuthorisationTable
+                        authorisations={authorisations}
+                        isLoading={isLoading}
+                        onEdit={handleEdit}
+                        onDelete={handleDelete}
+                    />
+                </CollapsibleSection>
+                {/* Add Form Section - Conditionally Rendered */}
+                {isFormOpen && (
+                    <div ref={formRef} className='slide-in-from-top-4 animate-in duration-300'>
+                        <CollapsibleSection
+                            title={editingId ? 'Update HR Authorisation' : 'Add New HR Authorisation'}
+                            description='Configure HR authorisation rules for different groups and activities'
+                            defaultOpen={true}
+                            variant='outline'
+                            size='md'
+                            className='shadow-lg'
+                            headerClassName=''>
+                            <div className='relative'>
+                                <Button
+                                    onClick={handleFormClose}
+                                    variant='ghost'
+                                    size='sm'
+                                    className='-top-[4rem] absolute right-12 w-fit border p-2 shadow-md hover:bg-destructive/10'>
+                                    <X className='h-4 w-4 text-destructive' /> Close
+                                </Button>
+                                <HRAuthorisationForm
+                                    onSubmit={handleAddToCart}
+                                    onCancel={handleFormClose}
+                                    formData={watch()}
+                                    setValue={setValue}
+                                    watchedActivities={watchedActivities}
+                                    handleActivityChange={handleActivityChange}
+                                    errors={{}}
+                                    isSubmitting={isSubmitting}
+                                />
+                            </div>
+                        </CollapsibleSection>
+                    </div>
+                )}
+                {/* Cart Details Section - Only show when there are items */}
+                {cartItems.length > 0 && (
+                    <CollapsibleSection
+                        title='CART DETAILS'
+                        description='Review items before saving'
+                        defaultOpen={true}
+                        variant='outline'
+                        size='lg'
+                        className='shadow-lg'>
+                        <div className='space-y-4'>
+                            <div className='overflow-x-auto'>
+                                <table className='w-full border-collapse'>
+                                    <thead>
+                                        <tr className='border-b'>
+                                            <th className='p-2 text-left'>Sl.No</th>
+                                            <th className='p-2 text-left'>Activities</th>
+                                            <th className='p-2 text-left'>Approved Person</th>
+                                            <th className='p-2 text-left'>Approved Level</th>
+                                            <th className='p-2 text-left'>Final Flag</th>
+                                            <th className='p-2 text-left'>Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {cartItems.map((item, index) => (
+                                            <tr key={item.id} className='border-b'>
+                                                <td className='p-2'>{index + 1}</td>
+                                                <td className='p-2'>{item.activities.join(', ')}</td>
+                                                <td className='p-2'>{item.approvedPerson}</td>
+                                                <td className='p-2'>{item.approvedLevel}</td>
+                                                <td className='p-2'>
+                                                    <Badge variant={item.finalFlag ? 'success' : 'secondary'}>
+                                                        {item.finalFlag ? '✓' : '✗'}
+                                                    </Badge>
+                                                </td>
+                                                <td className='p-2'>
+                                                    <Button
+                                                        variant='ghost'
+                                                        size='sm'
+                                                        onClick={() => handleRemoveFromCart(item.id)}
+                                                        className='text-red-600 hover:text-red-700'>
+                                                        <Trash2 className='h-4 w-4' />
+                                                    </Button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div className='flex gap-3 border-t pt-4'>
+                                <Button type='button' onClick={handleSaveCart} className='bg-blue-600 hover:bg-blue-700'>
+                                    <Save className='mr-2 h-4 w-4' />
+                                    SAVE
+                                </Button>
+                                <Button type='button' variant='destructive' onClick={handleCancelCart}>
+                                    <X className='mr-2 h-4 w-4' />
+                                    CANCEL
+                                </Button>
+                            </div>
+                        </div>
+                    </CollapsibleSection>
+                )}
+            </div>
+        </div>
+    );
+}
+interface HRAuthorisationFormProps {
+    onSubmit: () => void;
+    onCancel: () => void;
+    formData: HRAuthorisationForm;
+    setValue: any;
+    watchedActivities: string[];
+    handleActivityChange: (activity: string, checked: boolean) => void;
+    errors: any;
+    isSubmitting: boolean;
+}
+interface HRAuthorisationTableProps {
+    authorisations: HRAuthorisation[];
+    isLoading: boolean;
+    onEdit: (auth: HRAuthorisation) => void;
+    onDelete: (id: number) => void;
+}
+function HRAuthorisationForm({
+    onSubmit,
+    onCancel,
+    formData,
+    setValue,
+    watchedActivities,
+    handleActivityChange,
+    errors,
+    isSubmitting
+}: HRAuthorisationFormProps) {
+    // Mock data for dropdowns
+    const groups = ['Teaching', 'Non-Teaching', 'Administration'];
+    const departments = ['ComputerScience', 'Mathematics', 'Physics', 'Chemistry', 'Biology'];
+    const designations = ['Assistant Teacher', 'Teacher', 'Lab Assistance', 'Principal', 'Vice Principal'];
+    const grades = ['junior', 'senior', 'lead'];
+    const activities = [
+        'Salary',
+        'General',
+        'Training',
+        'CLGFEE',
+        'Maker And Checker',
+        'compoffODApproval',
+        'SalaryAdvance',
+        'Loan',
+        'Leave',
+        'Probationary'
+    ];
+    const users = ['BATMAN', 'WendyHazra', 'PoonamJaiswal'];
+    return (
+        <div className='max-w-full space-y-6'>
+            <div className='grid grid-cols-1 gap-6 lg:grid-cols-2'>
+                {/* Left Column */}
+                <div className='space-y-4'>
+                    <div className='space-y-2'>
+                        <span className='font-medium text-sm'>Select Group :*</span>
+                        <Select onValueChange={(value) => setValue('group', value)}>
+                            <SelectTrigger>
+                                <SelectValue placeholder='--Select--' />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {groups.map((group) => (
+                                    <SelectItem key={group} value={group}>
+                                        {group}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className='space-y-2'>
+                        <span className='font-medium text-sm'>Department :*</span>
+                        <Select onValueChange={(value) => setValue('department', value)}>
+                            <SelectTrigger>
+                                <SelectValue placeholder='--Select--' />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {departments.map((dept) => (
+                                    <SelectItem key={dept} value={dept}>
+                                        {dept}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className='space-y-2'>
+                        <span className='font-medium text-sm'>Designation Type :*</span>
+                        <Select onValueChange={(value) => setValue('designationType', value)}>
+                            <SelectTrigger>
+                                <SelectValue placeholder='--Select--' />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {designations.map((designation) => (
+                                    <SelectItem key={designation} value={designation}>
+                                        {designation}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className='space-y-2'>
+                        <span className='font-medium text-sm'>Grade Type :*</span>
+                        <Select onValueChange={(value) => setValue('gradeType', value)}>
+                            <SelectTrigger>
+                                <SelectValue placeholder='--Select--' />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {grades.map((grade) => (
+                                    <SelectItem key={grade} value={grade}>
+                                        {grade}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className='space-y-2'>
+                        <span className='font-medium text-sm'>Activities :*</span>
+                        <div className='max-h-32 space-y-1 overflow-y-auto rounded-md border p-2'>
+                            {activities.map((activity) => (
+                                <div key={activity} className='flex items-center space-x-2'>
+                                    <Checkbox
+                                        id={activity}
+                                        checked={watchedActivities?.includes(activity) || false}
+                                        onCheckedChange={(checked) => handleActivityChange(activity, checked as boolean)}
+                                    />
+                                    <label htmlFor={activity} className='text-sm'>
+                                        {activity}
+                                    </label>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+                {/* Right Column */}
+                <div className='space-y-4'>
+                    <InputText
+                        label='Email'
+                        id='email'
+                        placeholder='Enter Email'
+                        {...{ value: formData.email }}
+                        onChange={(e) => setValue('email', e.target.value)}
+                        error={errors.email?.message}
+                    />
+                    <InputText
+                        label='Email CC'
+                        id='emailCC'
+                        placeholder='Enter Email CC'
+                        {...{ value: formData.emailCC }}
+                        onChange={(e) => setValue('emailCC', e.target.value)}
+                        error={errors.emailCC?.message}
+                    />
+                    <div className='space-y-2'>
+                        <span className='font-medium text-sm'>Orderby :*</span>
+                        <Select onValueChange={(value) => setValue('orderBy', value)}>
+                            <SelectTrigger>
+                                <SelectValue placeholder='--Select--' />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value='1'>1</SelectItem>
+                                <SelectItem value='2'>2</SelectItem>
+                                <SelectItem value='3'>3</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className='space-y-2'>
+                        <span className='font-medium text-sm'>Approved by :*</span>
+                        <Select onValueChange={(value) => setValue('approvedBy', value)}>
+                            <SelectTrigger>
+                                <SelectValue placeholder='--Select--' />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {users.map((user) => (
+                                    <SelectItem key={user} value={user}>
+                                        {user}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className='flex items-center space-x-2 pt-2'>
+                        <Checkbox
+                            id='finalAuthority'
+                            checked={formData.finalAuthority}
+                            onCheckedChange={(checked) => setValue('finalAuthority', checked)}
+                        />
+                        <label htmlFor='finalAuthority' className='font-medium text-sm'>
+                            Final Authority
+                        </label>
+                    </div>
+                </div>
+            </div>
+            {/* Action Buttons */}
+            <div className='flex gap-3 border-t pt-4'>
+                <Button type='button' onClick={onSubmit} className='bg-blue-600 hover:bg-blue-700'>
+                    <Plus className='mr-2 h-4 w-4' />
+                    ADD TO CART
+                </Button>
+                <Button
+                    type='button'
+                    variant='outline'
+                    onClick={onCancel}
+                    disabled={isSubmitting}
+                    className='w-fit transition-all duration-200 hover:scale-105'>
+                    Cancel
+                </Button>
+            </div>
+        </div>
+    );
+}
+function HRAuthorisationTable({ authorisations, isLoading, onEdit, onDelete }: HRAuthorisationTableProps) {
+    const authColumns: ColumnDef<HRAuthorisation>[] = [
+        {
+            id: 'select',
+            header: ({ table }) => (
+                <Checkbox
+                    checked={table.getIsAllPageRowsSelected() || (table.getIsSomePageRowsSelected() && 'indeterminate')}
+                    onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+                    aria-label='Select all'
+                />
+            ),
+            cell: ({ row }) => (
+                <Checkbox checked={row.getIsSelected()} onCheckedChange={(value) => row.toggleSelected(!!value)} aria-label='Select row' />
+            ),
+            enableSorting: false,
+            enableHiding: false,
+            size: 24
+        },
+        {
+            accessorKey: 'id',
+            header: ({ column }) => <DataTableColumnHeader column={column} title='SL.NO.' />,
+            cell: ({ row, table }) => {
+                const pageIndex = table.getState().pagination.pageIndex;
+                const pageSize = table.getState().pagination.pageSize;
+                const continuousIndex = pageIndex * pageSize + row.index + 1;
+                return <div>{continuousIndex}</div>;
+            },
+            enableSorting: true,
+            enableHiding: false
+        },
+        {
+            accessorKey: 'type',
+            header: ({ column }) => <DataTableColumnHeader column={column} title='Type' />,
+            cell: ({ row }) => <div className='max-w-32 truncate'>{row.getValue('type')}</div>,
+            enableSorting: true
+        },
+        {
+            accessorKey: 'group',
+            header: ({ column }) => <DataTableColumnHeader column={column} title='Group' />,
+            cell: ({ row }) => <div>{row.getValue('group')}</div>,
+            enableSorting: true
+        },
+        {
+            accessorKey: 'department',
+            header: ({ column }) => <DataTableColumnHeader column={column} title='Department' />,
+            cell: ({ row }) => <div>{row.getValue('department')}</div>,
+            enableSorting: true
+        },
+        {
+            accessorKey: 'designation',
+            header: ({ column }) => <DataTableColumnHeader column={column} title='Designation' />,
+            cell: ({ row }) => <div>{row.getValue('designation')}</div>,
+            enableSorting: true
+        },
+        {
+            accessorKey: 'grade',
+            header: ({ column }) => <DataTableColumnHeader column={column} title='Grade' />,
+            cell: ({ row }) => <div>{row.getValue('grade')}</div>,
+            enableSorting: true
+        },
+        {
+            accessorKey: 'order',
+            header: ({ column }) => <DataTableColumnHeader column={column} title='Order' />,
+            cell: ({ row }) => <div>{row.getValue('order')}</div>,
+            enableSorting: true
+        },
+        {
+            accessorKey: 'userName',
+            header: ({ column }) => <DataTableColumnHeader column={column} title='UserName' />,
+            cell: ({ row }) => <div>{row.getValue('userName')}</div>,
+            enableSorting: true
+        },
+        {
+            accessorKey: 'finalFlag',
+            header: ({ column }) => <DataTableColumnHeader column={column} title='Final Flag' />,
+            cell: ({ row }) => (
+                <Badge variant={row.getValue('finalFlag') ? 'success' : 'secondary'}>{row.getValue('finalFlag') ? '✓' : '✗'}</Badge>
+            ),
+            enableSorting: true
+        },
+        {
+            accessorKey: 'email',
+            header: ({ column }) => <DataTableColumnHeader column={column} title='Email' />,
+            cell: ({ row }) => <div>{row.getValue('email')}</div>,
+            enableSorting: true
+        },
+        {
+            id: 'actions',
+            header: 'Actions',
+            accessorFn: (row: any) => {
+                return row;
+            },
+            enableSorting: false,
+            cell: ({ cell }: { cell: any }) => {
+                const auth = cell.getValue() as HRAuthorisation;
+                return (
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button variant='ghost' className='h-8 w-8 p-0'>
+                                <MoreHorizontal className='h-4 w-4' />
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent>
+                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                            <div className='flex-justify-between flex-wrap gap-2'>
+                                <Button variant='ghost' onClick={() => onEdit(auth)} className='w-full justify-start'>
+                                    <Edit className='mr-2 h-4 w-4' />
+                                    Edit
+                                </Button>
+                                <Button variant='ghost' className='w-full justify-start' title='Email'>
+                                    <Mail className='mr-2 h-4 w-4' />
+                                    Email
+                                </Button>
+                                <Button variant='ghost' className='w-full justify-start' title='View'>
+                                    <Eye className='mr-2 h-4 w-4' />
+                                    View
+                                </Button>
+                                <Button variant='ghost' onClick={() => onDelete(auth.id)} className='w-full justify-start text-destructive'>
+                                    <Trash2 className='mr-2 h-4 w-4' />
+                                    Delete
+                                </Button>
+                            </div>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                );
+            }
+        }
+    ];
+    return (
+        <div className='overflow-hidden rounded-lg bg-card'>
+            <GenericDataTable
+                isLoading={isLoading}
+                columns={authColumns}
+                data={authorisations}
+                totalItems={authorisations.length}
+                showViewOptions={true}
+                columnPinning={{ right: ['actions'] }}
+            />
+        </div>
+    );
+}

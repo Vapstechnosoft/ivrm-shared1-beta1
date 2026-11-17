@@ -1,0 +1,105 @@
+'use client';
+
+import { Heading } from '@/components/layout/heading';
+import { Button } from '@/components/ui/button';
+import { CollapsibleSection } from '@/components/ui/form/collapsible-section';
+import { DataTable } from '@/components/ui/data-table/data-table';
+import { DataTableColumnHeader } from '@/components/ui/data-table-column-header';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { InputText } from '@/components/ui/extension/input-text';
+import { Checkbox } from '@/components/ui/checkbox';
+import type { ColumnDef } from '@tanstack/react-table';
+import React, { useMemo, useState } from 'react';
+import { createLocalCrud, type BaseEntity } from '@/lib/localdb';
+import { RefreshCw, FileDown, Printer } from 'lucide-react';
+
+interface GPSLog extends BaseEntity {
+  employeeName: string;
+  clientName: string;
+  leadName: string;
+  gpsDate: string; // date-time
+  address: string;
+  remarks?: string;
+}
+
+export default function GPSLocationReportPage() {
+  const db = createLocalCrud<GPSLog>('attendance:gps-location-attendance'); // reuse same storage
+  const [betweenDates, setBetweenDates] = useState<boolean>(false);
+  const [fromDate, setFromDate] = useState<string>('');
+  const [toDate, setToDate] = useState<string>('');
+  const [employee, setEmployee] = useState<string>('');
+
+  const data = useMemo(() => db.list(), []);
+
+  const filtered = useMemo(() => {
+    return data.filter(r => {
+      const okEmp = employee ? r.employeeName === employee : true;
+      const okFrom = betweenDates && fromDate ? new Date(r.gpsDate) >= new Date(fromDate) : true;
+      const okTo = betweenDates && toDate ? new Date(r.gpsDate) <= new Date(toDate) : true;
+      return okEmp && okFrom && okTo;
+    });
+  }, [data, employee, betweenDates, fromDate, toDate]);
+
+  const columns: ColumnDef<GPSLog>[] = [
+    { id: 'sl', header: ({ column }) => <DataTableColumnHeader column={column} title='SL.No.' />, cell: ({ row }) => <div className='font-medium'>{row.index + 1}</div>, enableSorting: false },
+    { accessorKey: 'employeeName', header: ({ column }) => <DataTableColumnHeader column={column} title='Employee Name' /> },
+    { accessorKey: 'clientName', header: ({ column }) => <DataTableColumnHeader column={column} title='Client Name' /> },
+    { accessorKey: 'leadName', header: ({ column }) => <DataTableColumnHeader column={column} title='Lead Name' /> },
+    { accessorKey: 'gpsDate', header: ({ column }) => <DataTableColumnHeader column={column} title='GPSL Date' /> },
+    { accessorKey: 'address', header: ({ column }) => <DataTableColumnHeader column={column} title='Address' /> },
+    { accessorKey: 'remarks', header: ({ column }) => <DataTableColumnHeader column={column} title='Remarks' /> },
+  ];
+
+  const handleReport = () => {};
+  const handleExport = () => {};
+  const handlePrint = () => window.print();
+
+  return (
+    <div className='min-h-screen'>
+      <div className='container p-1 space-y-4'>
+        <div className='flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between'>
+          <div className='space-y-1'>
+            <Heading title='Attendance GPS Location Report' description='' />
+          </div>
+        </div>
+
+        <CollapsibleSection title='' description='' defaultOpen={true} variant='default' size='lg' className='shadow-lg transition-shadow duration-300 hover:shadow-xl'>
+          <div className='grid grid-cols-1 md:grid-cols-12 gap-4 items-end'>
+            <div className='md:col-span-12 flex gap-6 items-center'>
+              <label className='flex items-center gap-2 text-sm'><Checkbox checked={betweenDates} onCheckedChange={(v)=>setBetweenDates(Boolean(v))} /> Between Date</label>
+              <label className='flex items-center gap-2 text-sm'><Checkbox checked={!betweenDates} onCheckedChange={(v)=>setBetweenDates(!Boolean(v))} /> Employee Wise</label>
+            </div>
+            <div className='md:col-span-4'>
+              <label className='text-sm font-medium'>From Date</label>
+              <InputText type='date' value={fromDate} onChange={(e)=>setFromDate(e.target.value)} />
+            </div>
+            <div className='md:col-span-4'>
+              <label className='text-sm font-medium'>To Date</label>
+              <InputText type='date' value={toDate} onChange={(e)=>setToDate(e.target.value)} />
+            </div>
+            <div className='md:col-span-4'>
+              <label className='text-sm font-medium'>Employee Name</label>
+              <Select onValueChange={setEmployee}>
+                <SelectTrigger><SelectValue placeholder='Search Employee Name here...' /></SelectTrigger>
+                <SelectContent>
+                  {[...new Set(data.map(d => d.employeeName))].map(name => (
+                    <SelectItem key={name} value={name}>{name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className='md:col-span-12 flex gap-2 pt-2'>
+              <Button onClick={handleReport}><RefreshCw className='h-4 w-4 mr-2' /> Report</Button>
+              <Button variant='outline' onClick={handleExport}><FileDown className='h-4 w-4 mr-2' /> Export to Excel</Button>
+              <Button variant='outline' onClick={handlePrint}><Printer className='h-4 w-4 mr-2' /> Print</Button>
+            </div>
+          </div>
+        </CollapsibleSection>
+
+        <CollapsibleSection title='Attendance GPS Location Report' description='' defaultOpen={true} variant='default' size='lg' className='shadow-lg transition-shadow duration-300 hover:shadow-xl'>
+          <DataTable isLoading={false} columns={columns} data={filtered} totalItems={filtered.length} showViewOptions />
+        </CollapsibleSection>
+      </div>
+    </div>
+  );
+}

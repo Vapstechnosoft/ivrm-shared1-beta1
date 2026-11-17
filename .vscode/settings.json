@@ -1,0 +1,12 @@
+{
+    "editor.tabSize": 4,
+    "editor.wordWrap": "wordWrapColumn",
+    "editor.wordWrapColumn": 120,
+    "typescript.tsdk": "node_modules\\typescript\\lib",
+    "javascript.suggest.completeJSDoc": false,
+    "typescript.suggest.completeJSDoc": false,
+    "cSpell.words": [
+        "Challen",
+        "Swal"
+    ]
+}

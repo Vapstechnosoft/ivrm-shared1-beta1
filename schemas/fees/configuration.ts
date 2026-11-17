@@ -1,0 +1,68 @@
+import { z } from 'zod';
+import { deleteIdSchema } from '../validationSchemas';
+
+export const feeConfigSchema = {
+    addOrUpdate: z
+        .object({
+            fmC_AutoRecieptPrintFlag: z.string().optional(),
+            FMC_RebateTypeFlag: z.string().optional(),
+            FMC_ConcessionTypeFlag: z.string().optional(),
+            FMC_EnablePartialPaymentFlg: z.string().optional(),
+            FMC_Receipt_Signatory: z.string().optional(),
+            FMC_RClassFlag: z.string().optional(),
+            FMC_RSectionFlag: z.string().optional(),
+            FMC_No_Receipt: z.string().optional(),
+            FMC_Online_Payment_Aca_Yr_Flag: z.string().optional(),
+            FMC_GroupOrTermFlg: z.string().optional(),
+            FMC_ArrearAfterFlag: z.string().optional(),
+            FMC_Areawise_FeeFlg: z.string().optional(),
+            FMC_TransportFeeAreaFlag: z.string().optional(),
+            FMC_TransportFeeZoneFlag: z.string().optional(),
+            FMC_DOACheckFlag: z.string().optional(),
+            FMC_GroupRemarksFlag: z.string().optional(),
+            FMC_AutoReceiptFeeGroupFlag: z.string().optional(),
+            FMC_Receipt_Format: z.string().optional(),
+            FMC_EableStaffTrans: z.string().optional(),
+            FMC_EableOtherStudentTrans: z.string().optional(),
+            FMC_FineEnableDisable: z.string().optional(),
+            FMC_FineMapping: z.string().optional(),
+            FMC_USER_PREVILEDGE: z.string().optional(),
+            FMC_StaffConcessionCheck: z.string().optional(),
+            FMC_ShowPreviousFeeFisrtFlg: z.string().optional(),
+            FMC_MakerCheckerReqdFlg: z.string().optional(),
+            FMC_RebateAplicableFlg: z.string().optional(),
+            FMC_RebateAgainstFullPaymentFlg: z.string().optional(),
+            FMC_RebateAgainstPartialPaymentFlg: z.string().optional(),
+            FMC_RInstallmentsFlag: z.string().optional(),
+            FMC_RInstallmentsMergeFlag: z.string().optional(),
+            FMC_RFineFlag: z.string().optional(),
+            FMC_RConcessionFlag: z.string().optional(),
+            FMC_RWaivedFlag: z.string().optional(),
+            FMC_RBalanceFlag: z.string().optional(),
+            FMC_RAmountFlag: z.string().optional(),
+            FMC_RBankFlag: z.string().optional(),
+            FMC_ChallanOptionFlag: z.string().optional(),
+            FMC_RDueDateFlag: z.string().optional(),
+            FMC_RAddressFlag: z.string().optional(),
+            FMC_RFeeHeaderFlag: z.string().optional(),
+            FMC_FeeSearchNoOfDigits: z.string().optional(),
+            FMC_RUserNameFlag: z.string().optional(),
+            FMC_RFatherNameFlag: z.string().optional(),
+            FMC_MotherNameFlag: z.string().optional(),
+            FMC_RHeaderTitleFlag: z.string().optional(),
+            FMC_RPaymentDetailsFlag: z.string().optional(),
+            FMC_RAmountReceivedFlag: z.string().optional(),
+            FMC_RRemarksFlag: z.string().optional(),
+            FMC_RCurrentDateFlag: z.string().optional(),
+            FMC_Fine_Column: z.string().optional(),
+            FMC_ArrearColumn: z.string().optional(),
+            FMC_RFeeGroupFeeHeadFlag: z.string().optional(),
+            FMC_RSplFeeHeadFlag: z.string().optional(),
+            FMC_fmC_AutoRecieptPrintFlag: z.string().optional(),
+            FMC_StudentwiseJVFlag: z.string().optional()
+        })
+        .passthrough(),
+    delete: z.object({
+        fmC_Id: deleteIdSchema('fmC_Id')
+    })
+};

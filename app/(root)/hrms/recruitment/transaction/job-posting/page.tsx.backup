@@ -1,0 +1,405 @@
+'use client';
+
+import { Heading } from '@/components/layout/heading';
+import { DataTable } from '@/components/ui/data-table/data-table';
+import { Button } from '@/components/ui/button';
+import { CollapsibleSection } from '@/components/ui/form/collapsible-section';
+import { FormError } from '@/components/ui/extension/field';
+import { InputText } from '@/components/ui/extension/input-text';
+import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { DataTableColumnHeader } from '@/components/ui/data-table-column-header';
+import { Checkbox } from '@/components/ui/checkbox';
+import type { ColumnDef } from '@tanstack/react-table';
+import { Plus, Edit, Trash2, X, Save, RefreshCw, Upload } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { type SubmitHandler, useForm } from 'react-hook-form';
+import { toast } from 'sonner';
+import { createLocalCrud, type BaseEntity } from '@/lib/localdb';
+
+interface JobPosting extends BaseEntity {
+  position: string;
+  location: string;
+  locationType: 'HO' | 'Client' | 'Location';
+  department: string;
+  priority: string;
+  qualification: string;
+  positionType: string;
+  mrfNo: string;
+  skill: string;
+  experienceFrom: number;
+  experienceTo: number;
+  gender: string;
+  noOfPositions: number;
+  jobDescription: string;
+  age: string;
+  reason: string;
+  jobAttachment?: string;
+  tests: {
+    written: boolean;
+    online: boolean;
+    technical: boolean;
+  };
+  status: 'Draft' | 'Published' | 'Closed';
+}
+
+type JobPostingForm = {
+  position: string;
+  location: string;
+  locationType: 'HO' | 'Client' | 'Location';
+  department: string;
+  priority: string;
+  qualification: string;
+  positionType: string;
+  mrfNo: string;
+  skill: string;
+  experienceFrom: string;
+  experienceTo: string;
+  gender: string;
+  noOfPositions: string;
+  jobDescription: string;
+  age: string;
+  reason: string;
+};
+
+export default function JobPostingPage() {
+  const [postings, setPostings] = useState<JobPosting[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [editingPosting, setEditingPosting] = useState<JobPosting | null>(null);
+  const formRef = useRef<HTMLDivElement>(null);
+
+  const postingDB = createLocalCrud<JobPosting>('recruitment:job-posting');
+
+  const { register, handleSubmit, reset, setValue, formState: { errors, isSubmitting }, watch } = useForm<JobPostingForm>({ mode: 'onChange' });
+
+  const [tests, setTests] = useState({ written: false, online: false, technical: false });
+
+  useEffect(() => { loadData(); }, []);
+
+  const loadData = () => {
+    try {
+      setPostings(postingDB.list());
+    } catch {
+      toast.error('Failed to load job postings');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleAddClick = () => {
+    setIsFormOpen(true);
+    setTimeout(() => formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+  };
+
+  const handleFormClose = () => {
+    setIsFormOpen(false);
+    setEditingPosting(null);
+    reset();
+    setTests({ written: false, online: false, technical: false });
+  };
+
+  const onSubmit: SubmitHandler<JobPostingForm> = async (data) => {
+    try {
+      const posting: Omit<JobPosting, 'id' | 'createdAt'> = {
+        position: data.position,
+        location: data.location,
+        locationType: data.locationType,
+        department: data.department,
+        priority: data.priority,
+        qualification: data.qualification,
+        positionType: data.positionType,
+        mrfNo: data.mrfNo,
+        skill: data.skill,
+        experienceFrom: Number(data.experienceFrom || 0),
+        experienceTo: Number(data.experienceTo || 0),
+        gender: data.gender,
+        noOfPositions: Number(data.noOfPositions || 0),
+        jobDescription: data.jobDescription,
+        age: data.age,
+        reason: data.reason,
+        tests,
+        status: 'Draft',
+      };
+
+      if (editingPosting) {
+        postingDB.update(editingPosting.id, posting);
+        toast.success('Job posting updated');
+      } else {
+        postingDB.create(posting);
+        toast.success('Job posting created');
+      }
+      handleFormClose();
+      loadData();
+    } catch (e: any) {
+      toast.error(e.message || 'Operation failed');
+    }
+  };
+
+  const handleEdit = (p: JobPosting) => {
+    setEditingPosting(p);
+    reset({
+      position: p.position,
+      location: p.location,
+      locationType: p.locationType,
+      department: p.department,
+      priority: p.priority,
+      qualification: p.qualification,
+      positionType: p.positionType,
+      mrfNo: p.mrfNo,
+      skill: p.skill,
+      experienceFrom: String(p.experienceFrom),
+      experienceTo: String(p.experienceTo),
+      gender: p.gender,
+      noOfPositions: String(p.noOfPositions),
+      jobDescription: p.jobDescription,
+      age: p.age,
+      reason: p.reason,
+    });
+    setTests(p.tests || { written: false, online: false, technical: false });
+    setIsFormOpen(true);
+    setTimeout(() => formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+  };
+
+  const handleDelete = (p: JobPosting) => {
+    postingDB.remove(p.id);
+    toast.success('Job posting deleted');
+    loadData();
+  };
+
+  return (
+    <div className='min-h-screen'>
+      <div className='container p-1 space-y-4'>
+        {/* Header */}
+        <div className='flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between'>
+          <div className='space-y-1'>
+            <Heading title='Job Posting' description='Create and manage job postings' />
+          </div>
+          <Button type='button' onClick={handleAddClick} size='lg' className='transition-all duration-200 hover:scale-105 shadow-md hover:shadow-lg w-fit'>
+            <Plus className='h-4 w-4' />
+            New Job Posting
+          </Button>
+        </div>
+
+        {/* Table */}
+        <CollapsibleSection title='New Job Posting List' description='View, search and manage job postings' defaultOpen={true} variant='default' size='lg' className='shadow-lg transition-shadow duration-300 hover:shadow-xl' headerClassName=''>
+          <JobPostingTable postings={postings} isLoading={isLoading} onEdit={handleEdit} onDelete={handleDelete} />
+        </CollapsibleSection>
+
+        {/* Form */}
+        {isFormOpen && (
+          <div ref={formRef}>
+            <CollapsibleSection title={editingPosting ? 'Edit Job Posting' : 'New Job Posting'} description='Fill the job posting information' defaultOpen={true} variant='default' size='lg' className='shadow-lg transition-shadow duration-300 hover:shadow-xl'>
+              <form onSubmit={handleSubmit(onSubmit)} className='space-y-6'>
+                <div className='grid grid-cols-1 md:grid-cols-2 gap-6'>
+                  <div className='space-y-4'>
+                    <div className='space-y-2'>
+                      <label className='text-sm font-medium'>Position <span className='text-red-500'>*</span></label>
+                      <Select onValueChange={(v) => setValue('position', v)}>
+                        <SelectTrigger><SelectValue placeholder='--Select--' /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value='Software Engineer'>Software Engineer</SelectItem>
+                          <SelectItem value='Senior Developer'>Senior Developer</SelectItem>
+                          <SelectItem value='Project Manager'>Project Manager</SelectItem>
+                          <SelectItem value='HR Executive'>HR Executive</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {errors.position && <FormError>Position is required</FormError>}
+                    </div>
+
+                    <div className='space-y-2'>
+                      <label className='text-sm font-medium'>Priority <span className='text-red-500'>*</span></label>
+                      <Select onValueChange={(v) => setValue('priority', v)}>
+                        <SelectTrigger><SelectValue placeholder='--Select--' /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value='High'>High</SelectItem>
+                          <SelectItem value='Medium'>Medium</SelectItem>
+                          <SelectItem value='Low'>Low</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className='space-y-2'>
+                      <label className='text-sm font-medium'>Qualification <span className='text-red-500'>*</span></label>
+                      <Select onValueChange={(v) => setValue('qualification', v)}>
+                        <SelectTrigger><SelectValue placeholder='--Select--' /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value='B.Tech'>B.Tech</SelectItem>
+                          <SelectItem value='M.Tech'>M.Tech</SelectItem>
+                          <SelectItem value='BCA'>BCA</SelectItem>
+                          <SelectItem value='MCA'>MCA</SelectItem>
+                          <SelectItem value='MBA'>MBA</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className='space-y-2'>
+                      <label className='text-sm font-medium'>No. of Position <span className='text-red-500'>*</span></label>
+                      <InputText placeholder='e.g. 3' {...register('noOfPositions', { required: 'Required' })} error={errors.noOfPositions?.message} />
+                    </div>
+
+                    <div className='space-y-2'>
+                      <label className='text-sm font-medium'>Job Description <span className='text-red-500'>*</span></label>
+                      <InputText placeholder='Short description' {...register('jobDescription', { required: 'Required' })} error={errors.jobDescription?.message} />
+                    </div>
+
+                    <div className='space-y-2'>
+                      <label className='text-sm font-medium'>Age <span className='text-red-500'>*</span></label>
+                      <InputText placeholder='e.g. 22-30' {...register('age', { required: 'Required' })} error={errors.age?.message} />
+                    </div>
+
+                    <div className='space-y-2'>
+                      <label className='text-sm font-medium'>Reason <span className='text-red-500'>*</span></label>
+                      <InputText placeholder='Reason' {...register('reason', { required: 'Required' })} error={errors.reason?.message} />
+                    </div>
+
+                    <div className='space-y-2'>
+                      <label className='text-sm font-medium'>Job Attachment</label>
+                      <Button type='button' variant='outline' size='sm'>
+                        <Upload className='h-4 w-4 mr-2' />
+                        Upload Document
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className='space-y-4'>
+                    <div className='space-y-2'>
+                      <label className='text-sm font-medium'>Location <span className='text-red-500'>*</span></label>
+                      <InputText placeholder='City / Site' {...register('location', { required: 'Required' })} error={errors.location?.message} />
+                      <div className='flex items-center gap-6 pt-1'>
+                        <label className='flex items-center gap-2 text-sm'><Checkbox checked={watch('locationType')==='HO'} onCheckedChange={(v)=>setValue('locationType', 'HO')} /> HO</label>
+                        <label className='flex items-center gap-2 text-sm'><Checkbox checked={watch('locationType')==='Client'} onCheckedChange={(v)=>setValue('locationType', 'Client')} /> Client</label>
+                        <label className='flex items-center gap-2 text-sm'><Checkbox checked={watch('locationType')==='Location'} onCheckedChange={(v)=>setValue('locationType', 'Location')} /> Location</label>
+                      </div>
+                    </div>
+
+                    <div className='space-y-2'>
+                      <label className='text-sm font-medium'>Department <span className='text-red-500'>*</span></label>
+                      <Select onValueChange={(v) => setValue('department', v)}>
+                        <SelectTrigger><SelectValue placeholder='--Select--' /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value='IT'>IT</SelectItem>
+                          <SelectItem value='HR'>HR</SelectItem>
+                          <SelectItem value='Finance'>Finance</SelectItem>
+                          <SelectItem value='Operations'>Operations</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className='space-y-2'>
+                      <label className='text-sm font-medium'>Position Type <span className='text-red-500'>*</span></label>
+                      <Select onValueChange={(v) => setValue('positionType', v)}>
+                        <SelectTrigger><SelectValue placeholder='--Select--' /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value='Permanent'>Permanent</SelectItem>
+                          <SelectItem value='Contract'>Contract</SelectItem>
+                          <SelectItem value='Intern'>Intern</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className='space-y-2'>
+                      <label className='text-sm font-medium'>MRF No. <span className='text-red-500'>*</span></label>
+                      <InputText placeholder='Enter MRF number' {...register('mrfNo', { required: 'Required' })} error={errors.mrfNo?.message} />
+                    </div>
+
+                    <div className='space-y-2'>
+                      <label className='text-sm font-medium'>Skill <span className='text-red-500'>*</span></label>
+                      <InputText placeholder='Primary skills' {...register('skill', { required: 'Required' })} error={errors.skill?.message} />
+                    </div>
+
+                    <div className='space-y-2'>
+                      <label className='text-sm font-medium'>Experience (Year) <span className='text-red-500'>*</span></label>
+                      <div className='grid grid-cols-3 gap-2 items-center'>
+                        <InputText placeholder='From' {...register('experienceFrom', { required: 'Required' })} error={errors.experienceFrom?.message} />
+                        <span className='text-center'>to</span>
+                        <InputText placeholder='To' {...register('experienceTo', { required: 'Required' })} error={errors.experienceTo?.message} />
+                      </div>
+                    </div>
+
+                    <div className='space-y-2'>
+                      <label className='text-sm font-medium'>Gender <span className='text-red-500'>*</span></label>
+                      <Select onValueChange={(v) => setValue('gender', v)}>
+                        <SelectTrigger><SelectValue placeholder='--Select--' /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value='Male'>Male</SelectItem>
+                          <SelectItem value='Female'>Female</SelectItem>
+                          <SelectItem value='Any'>Any</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className='space-y-2'>
+                      <label className='text-sm font-medium'>Remark</label>
+                      <InputText placeholder='Remark' {...register('reason')} />
+                    </div>
+
+                    <div className='flex gap-6 pt-2'>
+                      <label className='flex items-center gap-2 text-sm'><Checkbox checked={tests.written} onCheckedChange={(v)=>setTests(s=>({...s, written: Boolean(v)}))} /> Written Test</label>
+                      <label className='flex items-center gap-2 text-sm'><Checkbox checked={tests.online} onCheckedChange={(v)=>setTests(s=>({...s, online: Boolean(v)}))} /> Online Test</label>
+                      <label className='flex items-center gap-2 text-sm'><Checkbox checked={tests.technical} onCheckedChange={(v)=>setTests(s=>({...s, technical: Boolean(v)}))} /> Technical Interview</label>
+                    </div>
+                  </div>
+                </div>
+
+                <div className='flex justify-center gap-4 pt-6 border-t'>
+                  <Button type='button' variant='outline' onClick={handleFormClose}>
+                    <X className='mr-2 h-4 w-4' />
+                    Cancel
+                  </Button>
+                  <Button type='submit' disabled={isSubmitting}>
+                    {isSubmitting ? (
+                      <div className='flex items-center'>
+                        <RefreshCw className='mr-2 h-4 w-4 animate-spin' />
+                        Saving...
+                      </div>
+                    ) : (
+                      <div className='flex items-center'>
+                        <Save className='mr-2 h-4 w-4' />
+                        Save & Publish
+                      </div>
+                    )}
+                  </Button>
+                </div>
+              </form>
+            </CollapsibleSection>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+interface JobPostingTableProps {
+  postings: JobPosting[];
+  isLoading: boolean;
+  onEdit: (p: JobPosting) => void;
+  onDelete: (p: JobPosting) => void;
+}
+
+function JobPostingTable({ postings, isLoading, onEdit, onDelete }: JobPostingTableProps) {
+  const columns: ColumnDef<JobPosting>[] = [
+    { id: 'sl', header: ({ column }) => <DataTableColumnHeader column={column} title='Sl.No' />, cell: ({ row }) => <div className='font-medium'>{row.index + 1}</div>, enableSorting: false },
+    { accessorKey: 'position', header: ({ column }) => <DataTableColumnHeader column={column} title='Position' /> },
+    { accessorKey: 'location', header: ({ column }) => <DataTableColumnHeader column={column} title='Location' /> },
+    { accessorKey: 'department', header: ({ column }) => <DataTableColumnHeader column={column} title='Department' /> },
+    { accessorKey: 'priority', header: ({ column }) => <DataTableColumnHeader column={column} title='Priority' /> },
+    { accessorKey: 'noOfPositions', header: ({ column }) => <DataTableColumnHeader column={column} title='No. of Positions' /> },
+    { accessorKey: 'status', header: ({ column }) => <DataTableColumnHeader column={column} title='Status' />, cell: ({ row }) => {
+      const status = row.getValue('status') as string;
+      const map: Record<string, string> = { Draft: 'bg-yellow-100 text-yellow-800', Published: 'bg-green-100 text-green-800', Closed: 'bg-red-100 text-red-800' };
+      return <Badge className={map[status] || 'bg-gray-100 text-gray-800'}>{status}</Badge>;
+    } },
+    { id: 'actions', header: 'Actions', cell: ({ row }) => {
+      const p = row.original;
+      return (
+        <div className='flex items-center gap-2'>
+          <Button variant='outline' size='sm' onClick={() => onEdit(p)}><Edit className='h-4 w-4' /></Button>
+          <Button variant='outline' size='sm' className='text-red-600' onClick={() => onDelete(p)}><Trash2 className='h-4 w-4' /></Button>
+        </div>
+      );
+    } },
+  ];
+
+  return <DataTable isLoading={isLoading} columns={columns} data={postings} totalItems={postings.length} showViewOptions />;
+}

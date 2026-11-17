@@ -1,0 +1,102 @@
+'use client';
+
+import { Heading } from '@/components/layout/heading';
+import { Button } from '@/components/ui/button';
+import { CollapsibleSection } from '@/components/ui/form/collapsible-section';
+import { DataTable } from '@/components/ui/data-table/data-table';
+import { DataTableColumnHeader } from '@/components/ui/data-table-column-header';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { InputText } from '@/components/ui/extension/input-text';
+import type { ColumnDef } from '@tanstack/react-table';
+import React, { useMemo, useState } from 'react';
+import { createLocalCrud, type BaseEntity } from '@/lib/localdb';
+import { Printer, RefreshCw, FileDown } from 'lucide-react';
+
+interface InterviewRecord extends BaseEntity {
+  candidateName: string;
+  interviewRound: string;
+  interviewType: string;
+  interviewDate: string;
+  interviewVenue: string;
+  interviewFeedback: string;
+  candidateStatus: 'Short Listed' | 'Selected' | 'Rejected' | 'In Progress';
+}
+
+export default function InterviewReportPage() {
+  const db = createLocalCrud<InterviewRecord>('recruitment:interview-report');
+  const [fromDate, setFromDate] = useState<string>('');
+  const [toDate, setToDate] = useState<string>('');
+  const [status, setStatus] = useState<'Upcoming' | 'InProgress' | 'Completed' | 'All'>('All');
+
+  const data = useMemo(() => db.list(), []);
+
+  const filtered = useMemo(() => {
+    return data.filter(r => {
+      const okFrom = fromDate ? new Date(r.interviewDate) >= new Date(fromDate) : true;
+      const okTo = toDate ? new Date(r.interviewDate) <= new Date(toDate) : true;
+      const okStatus = status === 'All' ? true : status === 'Upcoming' ? new Date(r.interviewDate) > new Date() : status === 'InProgress' ? r.candidateStatus === 'In Progress' : status === 'Completed';
+      return okFrom && okTo && okStatus;
+    });
+  }, [data, fromDate, toDate, status]);
+
+  const columns: ColumnDef<InterviewRecord>[] = [
+    { id: 'sl', header: ({ column }) => <DataTableColumnHeader column={column} title='SL No.' />, cell: ({ row }) => <div className='font-medium'>{row.index + 1}</div>, enableSorting: false },
+    { accessorKey: 'candidateName', header: ({ column }) => <DataTableColumnHeader column={column} title='Candidate Name' /> },
+    { accessorKey: 'interviewRound', header: ({ column }) => <DataTableColumnHeader column={column} title='Interview Round' /> },
+    { accessorKey: 'interviewType', header: ({ column }) => <DataTableColumnHeader column={column} title='Interview Type' /> },
+    { accessorKey: 'interviewDate', header: ({ column }) => <DataTableColumnHeader column={column} title='Interview Date' /> },
+    { accessorKey: 'interviewVenue', header: ({ column }) => <DataTableColumnHeader column={column} title='Interview Venue' /> },
+    { accessorKey: 'interviewFeedback', header: ({ column }) => <DataTableColumnHeader column={column} title='Interview Feedback' /> },
+    { accessorKey: 'candidateStatus', header: ({ column }) => <DataTableColumnHeader column={column} title='Candidate Status' /> },
+  ];
+
+  const handleReport = () => { /* no-op demo */ };
+  const handleExport = () => { /* export placeholder */ };
+  const handlePrint = () => window.print();
+
+  return (
+    <div className='min-h-screen'>
+      <div className='container p-1 space-y-4'>
+        <div className='flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between'>
+          <div className='space-y-1'>
+            <Heading title='Interview Report' description='' />
+          </div>
+        </div>
+
+        <CollapsibleSection title='' description='' defaultOpen={true} variant='default' size='lg' className='shadow-lg transition-shadow duration-300 hover:shadow-xl'>
+          <div className='grid grid-cols-1 md:grid-cols-12 gap-4 items-end'>
+            <div className='space-y-2 md:col-span-3'>
+              <label className='text-sm font-medium'>From Date</label>
+              <InputText type='date' value={fromDate} onChange={(e)=>setFromDate(e.target.value)} />
+            </div>
+            <div className='space-y-2 md:col-span-3'>
+              <label className='text-sm font-medium'>To Date</label>
+              <InputText type='date' value={toDate} onChange={(e)=>setToDate(e.target.value)} />
+            </div>
+            <div className='space-y-2 md:col-span-3'>
+              <label className='text-sm font-medium'>Status</label>
+              <Select onValueChange={(v)=>setStatus(v as any)}>
+                <SelectTrigger><SelectValue placeholder='All' /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value='All'>All</SelectItem>
+                  <SelectItem value='Upcoming'>Upcoming</SelectItem>
+                  <SelectItem value='InProgress'>In Progress</SelectItem>
+                  <SelectItem value='Completed'>Completed</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className='flex gap-2 md:col-span-3 justify-start md:justify-end'>
+              <Button type='button' onClick={handleReport}><RefreshCw className='h-4 w-4 mr-2' />Report</Button>
+              <Button type='button' variant='outline' onClick={handleExport}><FileDown className='h-4 w-4 mr-2' />Export to Excel</Button>
+              <Button type='button' variant='outline' onClick={handlePrint}><Printer className='h-4 w-4 mr-2' />Print</Button>
+            </div>
+          </div>
+        </CollapsibleSection>
+
+        <CollapsibleSection title='Grid View' description='' defaultOpen={true} variant='default' size='lg' className='shadow-lg transition-shadow duration-300 hover:shadow-xl'>
+          <DataTable isLoading={false} columns={columns} data={filtered} totalItems={filtered.length} showViewOptions />
+        </CollapsibleSection>
+      </div>
+    </div>
+  );
+}

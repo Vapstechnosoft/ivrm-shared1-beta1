@@ -1,0 +1,837 @@
+'use client';
+
+import { Heading } from '@/components/layout/heading';
+import { DataTable } from '@/components/ui/data-table/data-table';
+import { Button } from '@/components/ui/button';
+import { CollapsibleSection } from '@/components/ui/form/collapsible-section';
+import { FormError } from '@/components/ui/extension/field';
+import { InputText } from '@/components/ui/extension/input-text';
+import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { DataTableColumnHeader } from '@/components/ui/data-table-column-header';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Textarea } from '@/components/ui/textarea';
+import type { ColumnDef } from '@tanstack/react-table';
+import { Plus, Edit, Trash2, X, RefreshCw, FileText, Calendar as CalendarIcon, Mail, Phone, MapPin, Building2, User, Clock } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { type SubmitHandler, useForm, Controller } from 'react-hook-form';
+import { toast } from 'sonner';
+import { createLocalCrud, type BaseEntity } from '@/lib/localdb';
+import { cn } from '@/lib/utils';
+import { format } from 'date-fns';
+
+interface CallLetter extends BaseEntity {
+  candidateFirstName: string;
+  candidateMiddleName?: string;
+  candidateLastName: string;
+  candidateEmailId: string;
+  address: string;
+  position: string;
+  company: string;
+  hr: string;
+  jobPostingSite: string;
+  jobLocation: string;
+  jobPostDate: string;
+  interviewDate: string;
+  interviewTime: string;
+  officeEmailId: string;
+  officePhNo: string;
+  status: 'Draft' | 'Generated' | 'Sent';
+  generatedDate?: string;
+  sentDate?: string;
+}
+
+interface Candidate extends BaseEntity {
+  firstName: string;
+  middleName?: string;
+  lastName: string;
+  emailId: string;
+  mobileNo: string;
+  jobTitle: string;
+  status: string;
+}
+
+interface JobPosting extends BaseEntity {
+  jobTitle: string;
+  jobLocation: string;
+  company: string;
+  postDate: string;
+}
+
+interface Company extends BaseEntity {
+  companyName: string;
+  companyCode: string;
+}
+
+interface HR extends BaseEntity {
+  name: string;
+  email: string;
+  department: string;
+}
+
+type CallLetterForm = {
+  candidateFirstName: string;
+  candidateMiddleName?: string;
+  candidateLastName: string;
+  candidateEmailId: string;
+  address: string;
+  position: string;
+  company: string;
+  hr: string;
+  jobPostingSite: string;
+  jobLocation: string;
+  jobPostDate: Date | undefined;
+  interviewDate: Date | undefined;
+  interviewTimeHH: string;
+  interviewTimeMM: string;
+  officeEmailId: string;
+  officePhNo: string;
+};
+
+export default function CallLetterPage() {
+  const [callLetters, setCallLetters] = useState<CallLetter[]>([]);
+  const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [jobPostings, setJobPostings] = useState<JobPosting[]>([]);
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [hrList, setHRList] = useState<HR[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [editingLetter, setEditingLetter] = useState<CallLetter | null>(null);
+  const formRef = useRef<HTMLDivElement>(null);
+
+  const callLetterDB = createLocalCrud<CallLetter>('recruitment:call-letter');
+  const candidateDB = createLocalCrud<Candidate>('recruitment:candidate');
+  const jobPostingDB = createLocalCrud<JobPosting>('recruitment:job-posting');
+  const companyDB = createLocalCrud<Company>('hrms:company');
+  const hrDB = createLocalCrud<HR>('recruitment:hr');
+
+  const {
+    register,
+    handleSubmit,
+    reset,
+    setValue,
+    watch,
+    control,
+    formState: { errors, isSubmitting }
+  } = useForm<CallLetterForm>({
+    mode: 'onChange',
+    defaultValues: {
+      jobPostDate: undefined,
+      interviewDate: undefined,
+      interviewTimeHH: '10',
+      interviewTimeMM: '00',
+      officeEmailId: 'noreply@vapstech.com'
+    }
+  });
+
+  // Load data on component mount
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    try {
+      setCallLetters(callLetterDB.list());
+      setCandidates(candidateDB.list());
+      
+      // Initialize sample data if none exists
+      initializeSampleData();
+      
+      setJobPostings(jobPostingDB.list());
+      setCompanies(companyDB.list());
+      setHRList(hrDB.list());
+    } catch (error) {
+      toast.error('Failed to load data');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const initializeSampleData = () => {
+    // Initialize Job Postings
+    if (jobPostingDB.list().length === 0) {
+      const sampleJobPostings: Omit<JobPosting, 'id' | 'createdAt'>[] = [
+        { jobTitle: 'Software Engineer', jobLocation: 'Bangalore', company: 'Tech Solutions Ltd', postDate: '2024-01-15' },
+        { jobTitle: 'Senior Developer', jobLocation: 'Mumbai', company: 'Innovation Corp', postDate: '2024-01-20' },
+        { jobTitle: 'Project Manager', jobLocation: 'Delhi', company: 'Digital Systems', postDate: '2024-01-25' },
+        { jobTitle: 'UI/UX Designer', jobLocation: 'Pune', company: 'Creative Agency', postDate: '2024-01-30' }
+      ];
+      sampleJobPostings.forEach(job => jobPostingDB.create(job));
+    }
+
+    // Initialize Companies
+    if (companyDB.list().length === 0) {
+      const sampleCompanies: Omit<Company, 'id' | 'createdAt'>[] = [
+        { companyName: 'Tech Solutions Ltd', companyCode: 'TSL001' },
+        { companyName: 'Innovation Corp', companyCode: 'IC002' },
+        { companyName: 'Digital Systems', companyCode: 'DS003' },
+        { companyName: 'Creative Agency', companyCode: 'CA004' }
+      ];
+      sampleCompanies.forEach(company => companyDB.create(company));
+    }
+
+    // Initialize HR
+    if (hrDB.list().length === 0) {
+      const sampleHR: Omit<HR, 'id' | 'createdAt'>[] = [
+        { name: 'John Smith', email: 'john.smith@company.com', department: 'Human Resources' },
+        { name: 'Sarah Johnson', email: 'sarah.j@company.com', department: 'Talent Acquisition' },
+        { name: 'Mike Wilson', email: 'mike.w@company.com', department: 'Recruitment' },
+        { name: 'Lisa Brown', email: 'lisa.b@company.com', department: 'HR Operations' }
+      ];
+      sampleHR.forEach(hr => hrDB.create(hr));
+    }
+  };
+
+  const handleAddClick = () => {
+    setIsFormOpen(true);
+    setTimeout(() => {
+      formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 100);
+  };
+
+  const handleFormClose = () => {
+    setIsFormOpen(false);
+    setEditingLetter(null);
+    reset({
+      jobPostDate: undefined,
+      interviewDate: undefined,
+      interviewTimeHH: '10',
+      interviewTimeMM: '00',
+      officeEmailId: 'noreply@vapstech.com'
+    });
+  };
+
+  const onSubmit: SubmitHandler<CallLetterForm> = async (data: CallLetterForm) => {
+    try {
+      if (!data.jobPostDate || !data.interviewDate) {
+        toast.error('Please fill all required date fields');
+        return;
+      }
+
+      const callLetterData: Omit<CallLetter, 'id' | 'createdAt'> = {
+        candidateFirstName: data.candidateFirstName,
+        candidateMiddleName: data.candidateMiddleName,
+        candidateLastName: data.candidateLastName,
+        candidateEmailId: data.candidateEmailId,
+        address: data.address,
+        position: data.position,
+        company: data.company,
+        hr: data.hr,
+        jobPostingSite: data.jobPostingSite,
+        jobLocation: data.jobLocation,
+        jobPostDate: format(data.jobPostDate, 'yyyy-MM-dd'),
+        interviewDate: format(data.interviewDate, 'yyyy-MM-dd'),
+        interviewTime: `${data.interviewTimeHH}:${data.interviewTimeMM}`,
+        officeEmailId: data.officeEmailId,
+        officePhNo: data.officePhNo,
+        status: 'Draft'
+      };
+
+      if (editingLetter) {
+        callLetterDB.update(editingLetter.id, callLetterData);
+        toast.success('Call letter updated successfully');
+      } else {
+        callLetterDB.create(callLetterData);
+        toast.success('Call letter created successfully');
+      }
+      
+      handleFormClose();
+      loadData();
+    } catch (error: any) {
+      toast.error(error.message || 'Operation failed');
+    }
+  };
+
+  const handleClear = () => {
+    handleFormClose();
+    toast.info('Form cleared');
+  };
+
+  const handleEdit = (letter: CallLetter) => {
+    setEditingLetter(letter);
+    const [hours, minutes] = letter.interviewTime.split(':');
+    
+    reset({
+      candidateFirstName: letter.candidateFirstName,
+      candidateMiddleName: letter.candidateMiddleName,
+      candidateLastName: letter.candidateLastName,
+      candidateEmailId: letter.candidateEmailId,
+      address: letter.address,
+      position: letter.position,
+      company: letter.company,
+      hr: letter.hr,
+      jobPostingSite: letter.jobPostingSite,
+      jobLocation: letter.jobLocation,
+      jobPostDate: new Date(letter.jobPostDate),
+      interviewDate: new Date(letter.interviewDate),
+      interviewTimeHH: hours || '10',
+      interviewTimeMM: minutes || '00',
+      officeEmailId: letter.officeEmailId,
+      officePhNo: letter.officePhNo
+    });
+    
+    setIsFormOpen(true);
+    setTimeout(() => {
+      formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 100);
+  };
+
+  const handleDelete = async (letter: CallLetter) => {
+    try {
+      callLetterDB.remove(letter.id);
+      toast.success('Call letter deleted successfully');
+      loadData();
+    } catch (error) {
+      toast.error('Failed to delete call letter');
+    }
+  };
+
+  const handleGenerateTemplate = (letter: CallLetter) => {
+    // Update status to Generated
+    callLetterDB.update(letter.id, { 
+      ...letter, 
+      status: 'Generated', 
+      generatedDate: new Date().toISOString() 
+    });
+    toast.success('Call letter template generated successfully');
+    loadData();
+  };
+
+  const handleSendLetter = (letter: CallLetter) => {
+    // Update status to Sent
+    callLetterDB.update(letter.id, { 
+      ...letter, 
+      status: 'Sent', 
+      sentDate: new Date().toISOString() 
+    });
+    toast.success('Call letter sent successfully');
+    loadData();
+  };
+
+  const getCandidateName = (letter: CallLetter) => {
+    return `${letter.candidateFirstName} ${letter.candidateMiddleName || ''} ${letter.candidateLastName}`.trim();
+  };
+
+  return (
+    <div className='min-h-screen'>
+      <div className='container p-1 space-y-4'>
+        {/* Header */}
+        <div className='flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between'>
+          <div className='space-y-1'>
+            <Heading
+              title='Send Call Letter'
+              description='Generate and send call letters for interview invitations'
+            />
+          </div>
+          <Button
+            type='button'
+            onClick={handleAddClick}
+            size='lg'
+            className='transition-all duration-200 hover:scale-105 shadow-md hover:shadow-lg w-fit'>
+            <Plus className='h-4 w-4' />
+            Create Call Letter
+          </Button>
+        </div>
+
+        {/* Data Table Section - Collapsible but default open */}
+        <CollapsibleSection
+          title='Call Letters Data'
+          description='View, search, and manage all call letters'
+          defaultOpen={true}
+          variant='default'
+          size='lg'
+          className='shadow-lg transition-shadow duration-300 hover:shadow-xl'
+          headerClassName=''>
+          <CallLetterTable 
+            letters={callLetters} 
+            isLoading={isLoading} 
+            onEdit={handleEdit} 
+            onDelete={handleDelete}
+            onGenerateTemplate={handleGenerateTemplate}
+            onSendLetter={handleSendLetter}
+            getCandidateName={getCandidateName}
+          />
+        </CollapsibleSection>
+
+        {/* Add Form Section - Conditionally Rendered */}
+        {isFormOpen && (
+          <div ref={formRef}>
+            <CollapsibleSection
+              title={editingLetter ? 'Edit Call Letter' : 'Send Call Letter'}
+              description={editingLetter ? 'Update call letter information' : 'Create and send call letter for interview invitation'}
+              defaultOpen={true}
+              variant='default'
+              size='lg'
+              className='shadow-lg transition-shadow duration-300 hover:shadow-xl'>
+              
+              <form onSubmit={handleSubmit(onSubmit)} className='space-y-6'>
+                <div className='grid grid-cols-1 md:grid-cols-2 gap-6'>
+                  {/* Left Column */}
+                  <div className='space-y-6'>
+                    {/* Candidate First Name */}
+                    <div className='space-y-2'>
+                      <label className='text-sm font-medium text-gray-700'>
+                        Candidate First Name <span className='text-red-500'>*</span>
+                      </label>
+                      <InputText
+                        placeholder="Enter first name"
+                        {...register('candidateFirstName', { required: 'First name is required' })}
+                        error={errors.candidateFirstName?.message}
+                      />
+                    </div>
+
+                    {/* Middle Name */}
+                    <div className='space-y-2'>
+                      <label className='text-sm font-medium text-gray-700'>
+                        Middle Name <span className='text-red-500'>*</span>
+                      </label>
+                      <InputText
+                        placeholder="Enter middle name"
+                        {...register('candidateMiddleName', { required: 'Middle name is required' })}
+                        error={errors.candidateMiddleName?.message}
+                      />
+                    </div>
+
+                    {/* Last Name */}
+                    <div className='space-y-2'>
+                      <label className='text-sm font-medium text-gray-700'>
+                        Last Name <span className='text-red-500'>*</span>
+                      </label>
+                      <InputText
+                        placeholder="Enter last name"
+                        {...register('candidateLastName', { required: 'Last name is required' })}
+                        error={errors.candidateLastName?.message}
+                      />
+                    </div>
+
+                    {/* Address */}
+                    <div className='space-y-2'>
+                      <label className='text-sm font-medium text-gray-700'>
+                        Address <span className='text-red-500'>*</span>
+                      </label>
+                      <Textarea
+                        placeholder="Local Address"
+                        rows={3}
+                        {...register('address', { required: 'Address is required' })}
+                      />
+                      {errors.address && <FormError>{errors.address.message}</FormError>}
+                    </div>
+
+                    {/* Position */}
+                    <div className='space-y-2'>
+                      <label className='text-sm font-medium text-gray-700'>
+                        Position <span className='text-red-500'>*</span>
+                      </label>
+                      <Select onValueChange={(value) => setValue('position', value)}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="--Select--" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Software Engineer">Software Engineer</SelectItem>
+                          <SelectItem value="Senior Software Engineer">Senior Software Engineer</SelectItem>
+                          <SelectItem value="Team Lead">Team Lead</SelectItem>
+                          <SelectItem value="Project Manager">Project Manager</SelectItem>
+                          <SelectItem value="UI/UX Designer">UI/UX Designer</SelectItem>
+                          <SelectItem value="Business Analyst">Business Analyst</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {errors.position && <FormError>Position is required</FormError>}
+                    </div>
+
+                    {/* Candidate Email Id */}
+                    <div className='space-y-2'>
+                      <label className='text-sm font-medium text-gray-700'>
+                        Candidate Email Id <span className='text-red-500'>*</span>
+                      </label>
+                      <InputText
+                        type="email"
+                        placeholder="candidate@email.com"
+                        {...register('candidateEmailId', { 
+                          required: 'Email is required',
+                          pattern: {
+                            value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
+                            message: 'Invalid email address'
+                          }
+                        })}
+                        error={errors.candidateEmailId?.message}
+                      />
+                    </div>
+
+                    {/* Company */}
+                    <div className='space-y-2'>
+                      <label className='text-sm font-medium text-gray-700'>
+                        Company <span className='text-red-500'>*</span>
+                      </label>
+                      <Select onValueChange={(value) => setValue('company', value)}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="--Select--" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {companies.map((company) => (
+                            <SelectItem key={company.id} value={company.companyName}>
+                              {company.companyName}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {errors.company && <FormError>Company is required</FormError>}
+                    </div>
+
+                    {/* HR */}
+                    <div className='space-y-2'>
+                      <label className='text-sm font-medium text-gray-700'>
+                        HR <span className='text-red-500'>*</span>
+                      </label>
+                      <Select onValueChange={(value) => setValue('hr', value)}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="--Select--" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {hrList.map((hr) => (
+                            <SelectItem key={hr.id} value={hr.name}>
+                              {hr.name} - {hr.department}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {errors.hr && <FormError>HR is required</FormError>}
+                    </div>
+                  </div>
+
+                  {/* Right Column */}
+                  <div className='space-y-6'>
+                    {/* Job Posting Site */}
+                    <div className='space-y-2'>
+                      <label className='text-sm font-medium text-gray-700'>
+                        Job Posting Site <span className='text-red-500'>*</span>
+                      </label>
+                      <Select onValueChange={(value) => setValue('jobPostingSite', value)}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="--Select--" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Naukri.com">Naukri.com</SelectItem>
+                          <SelectItem value="LinkedIn">LinkedIn</SelectItem>
+                          <SelectItem value="Indeed">Indeed</SelectItem>
+                          <SelectItem value="Monster">Monster</SelectItem>
+                          <SelectItem value="Company Website">Company Website</SelectItem>
+                          <SelectItem value="Referral">Referral</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {errors.jobPostingSite && <FormError>Job posting site is required</FormError>}
+                    </div>
+
+                    {/* Job Location */}
+                    <div className='space-y-2'>
+                      <label className='text-sm font-medium text-gray-700'>
+                        Job Location <span className='text-red-500'>*</span>
+                      </label>
+                      <InputText
+                        placeholder="Enter job location"
+                        {...register('jobLocation', { required: 'Job location is required' })}
+                        error={errors.jobLocation?.message}
+                      />
+                    </div>
+
+                    {/* Job Post Date */}
+                    <div className='space-y-2'>
+                      <label className='text-sm font-medium text-gray-700'>
+                        Job Post Date
+                      </label>
+                      <Controller
+                        control={control}
+                        name="jobPostDate"
+                        render={({ field }) => (
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button
+                                variant="outline"
+                                className={cn(
+                                  "w-full justify-start text-left font-normal",
+                                  !field.value && "text-muted-foreground"
+                                )}
+                              >
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {field.value ? format(field.value, "dd-MM-yyyy") : "Select date"}
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                              <Calendar
+                                mode="single"
+                                selected={field.value}
+                                onSelect={field.onChange}
+                                initialFocus
+                              />
+                            </PopoverContent>
+                          </Popover>
+                        )}
+                      />
+                    </div>
+
+                    {/* Interview Date */}
+                    <div className='space-y-2'>
+                      <label className='text-sm font-medium text-gray-700'>
+                        Interview Date
+                      </label>
+                      <Controller
+                        control={control}
+                        name="interviewDate"
+                        render={({ field }) => (
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button
+                                variant="outline"
+                                className={cn(
+                                  "w-full justify-start text-left font-normal",
+                                  !field.value && "text-muted-foreground"
+                                )}
+                              >
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {field.value ? format(field.value, "dd-MM-yyyy") : "Select date"}
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                              <Calendar
+                                mode="single"
+                                selected={field.value}
+                                onSelect={field.onChange}
+                                disabled={(date) => date < new Date()}
+                                initialFocus
+                              />
+                            </PopoverContent>
+                          </Popover>
+                        )}
+                      />
+                    </div>
+
+                    {/* Interview Time */}
+                    <div className='space-y-2'>
+                      <label className='text-sm font-medium text-gray-700'>
+                        Interview Time <span className='text-red-500'>*</span>
+                      </label>
+                      <div className='flex items-center gap-2'>
+                        <Select onValueChange={(value) => setValue('interviewTimeHH', value)}>
+                          <SelectTrigger className="w-20">
+                            <SelectValue placeholder="HH" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {Array.from({ length: 24 }, (_, i) => (
+                              <SelectItem key={i} value={i.toString().padStart(2, '0')}>
+                                {i.toString().padStart(2, '0')}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <span>:</span>
+                        <Select onValueChange={(value) => setValue('interviewTimeMM', value)}>
+                          <SelectTrigger className="w-20">
+                            <SelectValue placeholder="MM" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {['00', '15', '30', '45'].map((minute) => (
+                              <SelectItem key={minute} value={minute}>
+                                {minute}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    {/* Office Email Id */}
+                    <div className='space-y-2'>
+                      <label className='text-sm font-medium text-gray-700'>
+                        Office Email Id <span className='text-red-500'>*</span>
+                      </label>
+                      <InputText
+                        type="email"
+                        placeholder="noreply@vapstech.com"
+                        {...register('officeEmailId', { 
+                          required: 'Office email is required',
+                          pattern: {
+                            value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
+                            message: 'Invalid email address'
+                          }
+                        })}
+                        error={errors.officeEmailId?.message}
+                      />
+                    </div>
+
+                    {/* Office Ph. No. */}
+                    <div className='space-y-2'>
+                      <label className='text-sm font-medium text-gray-700'>
+                        Office Ph. No. <span className='text-red-500'>*</span>
+                      </label>
+                      <InputText
+                        type="tel"
+                        placeholder="Enter office phone number"
+                        {...register('officePhNo', { required: 'Office phone number is required' })}
+                        error={errors.officePhNo?.message}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Form Actions */}
+                <div className='flex justify-center gap-4 pt-6 border-t'>
+                  <Button type="button" variant="outline" onClick={handleClear}>
+                    <X className="mr-2 h-4 w-4" />
+                    Clear
+                  </Button>
+                  <Button type="submit" disabled={isSubmitting}>
+                    {isSubmitting ? (
+                      <div className='flex items-center'>
+                        <RefreshCw className='mr-2 h-4 w-4 animate-spin' />
+                        Saving...
+                      </div>
+                    ) : (
+                      <div className='flex items-center'>
+                        <FileText className='mr-2 h-4 w-4' />
+                        Generate Template
+                      </div>
+                    )}
+                  </Button>
+                </div>
+              </form>
+            </CollapsibleSection>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+interface CallLetterTableProps {
+  letters: CallLetter[];
+  isLoading: boolean;
+  onEdit: (letter: CallLetter) => void;
+  onDelete: (letter: CallLetter) => void;
+  onGenerateTemplate: (letter: CallLetter) => void;
+  onSendLetter: (letter: CallLetter) => void;
+  getCandidateName: (letter: CallLetter) => string;
+}
+
+function CallLetterTable({ letters, isLoading, onEdit, onDelete, onGenerateTemplate, onSendLetter, getCandidateName }: CallLetterTableProps) {
+  const letterColumns: ColumnDef<CallLetter>[] = [
+    {
+      id: 'serialNumber',
+      header: ({ column }) => <DataTableColumnHeader column={column} title='Sl.No' />,
+      cell: ({ row }) => <div className="font-medium">{row.index + 1}</div>,
+      enableSorting: false,
+    },
+    {
+      accessorKey: 'candidateFirstName',
+      header: ({ column }) => <DataTableColumnHeader column={column} title='Candidate Name' />,
+      cell: ({ row }) => {
+        const letter = row.original;
+        return <div className="font-medium">{getCandidateName(letter)}</div>;
+      }
+    },
+    {
+      accessorKey: 'candidateEmailId',
+      header: ({ column }) => <DataTableColumnHeader column={column} title='Email' />,
+      cell: ({ row }) => <div>{row.getValue('candidateEmailId')}</div>
+    },
+    {
+      accessorKey: 'position',
+      header: ({ column }) => <DataTableColumnHeader column={column} title='Position' />,
+      cell: ({ row }) => <div>{row.getValue('position')}</div>
+    },
+    {
+      accessorKey: 'company',
+      header: ({ column }) => <DataTableColumnHeader column={column} title='Company' />,
+      cell: ({ row }) => <div>{row.getValue('company')}</div>
+    },
+    {
+      accessorKey: 'jobLocation',
+      header: ({ column }) => <DataTableColumnHeader column={column} title='Location' />,
+      cell: ({ row }) => <div>{row.getValue('jobLocation')}</div>
+    },
+    {
+      accessorKey: 'interviewDate',
+      header: ({ column }) => <DataTableColumnHeader column={column} title='Interview Date' />,
+      cell: ({ row }) => <div>{new Date(row.getValue('interviewDate')).toLocaleDateString()}</div>
+    },
+    {
+      accessorKey: 'interviewTime',
+      header: ({ column }) => <DataTableColumnHeader column={column} title='Time' />,
+      cell: ({ row }) => <div>{row.getValue('interviewTime')}</div>
+    },
+    {
+      accessorKey: 'status',
+      header: ({ column }) => <DataTableColumnHeader column={column} title='Status' />,
+      cell: ({ row }) => {
+        const status = row.getValue('status') as string;
+        const statusColors = {
+          'Draft': 'bg-yellow-100 text-yellow-800',
+          'Generated': 'bg-blue-100 text-blue-800',
+          'Sent': 'bg-green-100 text-green-800'
+        };
+        return (
+          <Badge className={statusColors[status as keyof typeof statusColors] || 'bg-gray-100 text-gray-800'}>
+            {status}
+          </Badge>
+        );
+      }
+    },
+    {
+      id: 'actions',
+      header: 'Actions',
+      cell: ({ row }) => {
+        const letter = row.original;
+        return (
+          <div className="flex flex-wrap items-center gap-1">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => onEdit(letter)}
+              className="text-blue-600 hover:text-blue-800"
+            >
+              <Edit className="h-3 w-3" />
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => onDelete(letter)}
+              className="text-red-600 hover:text-red-800"
+            >
+              <Trash2 className="h-3 w-3" />
+            </Button>
+            {letter.status === 'Draft' && (
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => onGenerateTemplate(letter)}
+                className="text-green-600 hover:text-green-800"
+              >
+                Generate
+              </Button>
+            )}
+            {letter.status === 'Generated' && (
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => onSendLetter(letter)}
+                className="text-purple-600 hover:text-purple-800"
+              >
+                <Mail className="h-3 w-3 mr-1" />
+                Send
+              </Button>
+            )}
+          </div>
+        );
+      }
+    }
+  ];
+
+  return (
+    <DataTable
+      isLoading={isLoading}
+      columns={letterColumns}
+      data={letters}
+      totalItems={letters.length}
+      showViewOptions={true}
+    />
+  );
+}

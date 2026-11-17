@@ -1,0 +1,163 @@
+'use client';
+
+import { Heading } from '@/components/layout/heading';
+import { Button } from '@/components/ui/button';
+import { CollapsibleSection } from '@/components/ui/form/collapsible-section';
+import { DataTable } from '@/components/ui/data-table/data-table';
+import { InputText } from '@/components/ui/extension/input-text';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
+import React, { useMemo, useState } from 'react';
+
+interface LeaveRow {
+  slNo: number;
+  employeeCode: string;
+  employeeName: string;
+  leaveName: string;
+  fromDate: string;
+  toDate: string;
+  appliedDays: number;
+  leaveStatus: 'Approved' | 'Pending' | 'Rejected';
+  leaveBalance: number;
+}
+
+export default function LeaveReportPage() {
+  const [rows, setRows] = useState<LeaveRow[]>([]);
+  const [isIndividual, setIsIndividual] = useState(false);
+  const [company, setCompany] = useState('');
+  const [employee, setEmployee] = useState('');
+  const [leave, setLeave] = useState('All');
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
+
+  const columns = useMemo(() => [
+    { accessorKey: 'slNo', header: 'Sl.No' },
+    { accessorKey: 'employeeCode', header: 'Employee Code' },
+    { accessorKey: 'employeeName', header: 'Employee Name' },
+    { accessorKey: 'leaveName', header: 'Leave Name' },
+    { accessorKey: 'fromDate', header: 'From Date' },
+    { accessorKey: 'toDate', header: 'To Date' },
+    { accessorKey: 'appliedDays', header: 'Applied Days' },
+    { accessorKey: 'leaveStatus', header: 'Leave Status' },
+    { accessorKey: 'leaveBalance', header: 'Leave Balance' }
+  ], []);
+
+  const handleReport = () => {
+    setRows(Array.from({ length: 12 }).map((_, i) => ({
+      slNo: i + 1,
+      employeeCode: '69',
+      employeeName: 'R Siddesh Kumar',
+      leaveName: 'Casual Leave',
+      fromDate: '2025-01-01',
+      toDate: '2025-01-02',
+      appliedDays: 8,
+      leaveStatus: 'Approved',
+      leaveBalance: 8
+    })) as LeaveRow[]);
+  };
+
+  const handleClear = () => {
+    setIsIndividual(false);
+    setCompany('');
+    setEmployee('');
+    setLeave('All');
+    setFromDate('');
+    setToDate('');
+    setRows([]);
+  };
+
+  return (
+    <div className='min-h-screen'>
+      <div className='container p-1 space-y-4'>
+        <div className='flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between'>
+          <div className='space-y-1'>
+            <Heading title='Leave Management' description='Leave Report' />
+          </div>
+        </div>
+
+        <CollapsibleSection title='' description='' defaultOpen={true} variant='default' size='lg' className='shadow-lg transition-shadow duration-300 hover:shadow-xl'>
+          <div className='grid grid-cols-1 gap-4'>
+            <div className='flex items-center gap-4'>
+              <span className='text-sm font-medium'>Company Name</span>
+              <Select value={company} onValueChange={setCompany}>
+                <SelectTrigger className='w-80'>
+                  <SelectValue placeholder='Select or Search Company' />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value='ALL'>All</SelectItem>
+                  <SelectItem value='VKS'>VKS</SelectItem>
+                  <SelectItem value='Other Co'>Other Co</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className='flex items-center gap-6'>
+              <label className='flex items-center gap-2 text-sm'>
+                <input type='radio' checked={!isIndividual} onChange={()=>setIsIndividual(false)} /> All
+              </label>
+              <label className='flex items-center gap-2 text-sm'>
+                <input type='radio' checked={isIndividual} onChange={()=>setIsIndividual(true)} /> Individual
+              </label>
+            </div>
+
+            <div className='grid grid-cols-1 md:grid-cols-3 gap-4 items-end'>
+              <div>
+                <label className='text-sm font-medium'>Employee</label>
+                <Select value={employee} onValueChange={setEmployee}>
+                <SelectTrigger>
+                    <SelectValue placeholder='Select or Search Employee' />
+                  </SelectTrigger>
+                  <SelectContent>
+                  <SelectItem value='ALL'>All</SelectItem>
+                    <SelectItem value='R Siddesh Kumar'>R Siddesh Kumar</SelectItem>
+                    <SelectItem value='Benoy Yogesh Shetty'>Benoy Yogesh Shetty</SelectItem>
+                    <SelectItem value='Shruthi NA'>Shruthi NA</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <label className='text-sm font-medium'>Leave</label>
+                <Select value={leave} onValueChange={setLeave}>
+                  <SelectTrigger>
+                    <SelectValue placeholder='All' />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {['All','Casual Leave','Sick Leave','Privilege Leave','Comp Off','Optional Leave'].map(l => (
+                      <SelectItem key={l} value={l}>{l}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className='grid grid-cols-1 md:grid-cols-2 gap-2 md:col-span-1'>
+                <div>
+                  <label className='text-sm font-medium'>From Date</label>
+                  <InputText type='date' value={fromDate} onChange={(e)=>setFromDate(e.target.value)} />
+                </div>
+                <div>
+                  <label className='text-sm font-medium'>To Date</label>
+                  <InputText type='date' value={toDate} onChange={(e)=>setToDate(e.target.value)} />
+                </div>
+              </div>
+
+              <div className='md:col-span-3 flex items-center gap-2'>
+                <Checkbox id='empLeaveBalance' />
+                <label htmlFor='empLeaveBalance' className='text-sm'>Employee Leave Balance</label>
+              </div>
+
+              <div className='md:col-span-3 flex gap-2'>
+                <Button onClick={handleReport}>Report</Button>
+                <Button variant='destructive' onClick={handleClear}>Clear</Button>
+              </div>
+            </div>
+          </div>
+        </CollapsibleSection>
+
+        <CollapsibleSection title='Leave Report' description='' defaultOpen={rows.length>0} variant='default' size='lg' className='shadow-lg transition-shadow duration-300 hover:shadow-xl'>
+          <DataTable data={rows} columns={columns} totalItems={rows.length} />
+        </CollapsibleSection>
+      </div>
+    </div>
+  );
+}

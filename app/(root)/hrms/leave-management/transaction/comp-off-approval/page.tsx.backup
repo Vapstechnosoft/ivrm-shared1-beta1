@@ -1,0 +1,90 @@
+'use client';
+
+import { Heading } from '@/components/layout/heading';
+import { Button } from '@/components/ui/button';
+import { CollapsibleSection } from '@/components/ui/form/collapsible-section';
+import { DataTable } from '@/components/ui/data-table/data-table';
+import { createLocalCrud, type BaseEntity } from '@/lib/localdb';
+import { toast } from 'sonner';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Check, X } from 'lucide-react';
+
+interface CompOffApproval extends BaseEntity {
+  employeeName: string;
+  date: string;
+  time: string;
+  compOffToBeCredit: number;
+  reason: string;
+  hrStatus: 'Pending' | 'Approved' | 'Rejected';
+  approverRemarks?: string;
+  remark?: string;
+}
+
+const compOffDB = createLocalCrud<CompOffApproval>('compOffApproval');
+
+export default function CompOffApprovalPage() {
+  const [data, setData] = useState<CompOffApproval[]>([]);
+
+  const loadData = () => {
+    setData(compOffDB.list());
+  };
+
+  useEffect(() => { loadData(); }, []);
+
+  const handleApprove = (row: CompOffApproval) => {
+    compOffDB.update(row.id, { hrStatus: 'Approved' });
+    toast.success('Approved');
+    loadData();
+  };
+
+  const handleReject = (row: CompOffApproval) => {
+    compOffDB.update(row.id, { hrStatus: 'Rejected' });
+    toast.success('Rejected');
+    loadData();
+  };
+
+  const columns = useMemo(() => [
+    { accessorKey: 'employeeName', header: 'Employee Name' },
+    { accessorKey: 'date', header: 'Date' },
+    { accessorKey: 'time', header: 'Time' },
+    { accessorKey: 'compOffToBeCredit', header: 'Comp Off to be Credit' },
+    { accessorKey: 'reason', header: 'Reason' },
+    { accessorKey: 'hrStatus', header: 'HR Status' },
+    { accessorKey: 'approverRemarks', header: 'Approver Remarks' },
+    { accessorKey: 'remark', header: 'Remark' },
+    {
+      id: 'actions',
+      header: 'Actions',
+      cell: ({ row }: { row: any }) => (
+        <div className='flex gap-2'>
+          <Button size='sm' onClick={() => handleApprove(row.original)} disabled={row.original.hrStatus === 'Approved'}>
+            <Check className='h-4 w-4 mr-1' /> Approve
+          </Button>
+          <Button size='sm' variant='destructive' onClick={() => handleReject(row.original)} disabled={row.original.hrStatus === 'Rejected'}>
+            <X className='h-4 w-4 mr-1' /> Reject
+          </Button>
+        </div>
+      )
+    }
+  ], []);
+
+  return (
+    <div className='min-h-screen'>
+      <div className='container p-1 space-y-4'>
+        <div className='flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between'>
+          <div className='space-y-1'>
+            <Heading title='Leave Management' description='Comp Off Approval' />
+          </div>
+        </div>
+
+        <CollapsibleSection title='Comp Off Approval' description='' defaultOpen={true} variant='default' size='lg' className='shadow-lg transition-shadow duration-300 hover:shadow-xl'>
+          {data.length === 0 ? (
+            <div className='text-center text-sm text-muted-foreground py-10'>No Approvals Pending</div>
+          ) : (
+            <DataTable data={data} columns={columns} totalItems={data.length} />
+          )}
+        </CollapsibleSection>
+      </div>
+    </div>
+  );
+}
